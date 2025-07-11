@@ -1,0 +1,7 @@
+requests>=2.25.1
+PySocks>=1.7.1
+web3>=6.0.0
+PyQt5>=5.15.0
+selenium>=4.0.0
+pyautogui>=0.9.54
+pyperclip>=1.8.2 

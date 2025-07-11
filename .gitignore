@@ -1,0 +1,23 @@
+# Python缓存和编译文件
+__pycache__/
+*.pyc
+*.pyo
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 日志和临时文件
+logs/
+*.log
+
+# IDE和编辑器配置
+.vscode/
+.idea/
+*.swp
+*~
+
+# 配置和资源
+resource/*.txt
+
