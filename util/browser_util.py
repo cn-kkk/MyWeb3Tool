@@ -4,6 +4,7 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from util.anti_sybil_util import AntiSybilUtil
 from config import BROWSER_CONFIG_FILE, API_ENDPOINTS, API_HEADER_KEY, API_URL_VALID_PREFIXES
 
 BROWSER_USERID_FILE = BROWSER_CONFIG_FILE
@@ -80,6 +81,10 @@ def get_all_ads_envs():
                     print(f"[INFO] 检测到OKX钱包插件: {crx_path}，attach模式下无法动态加载，仅新建driver时生效")
                 service = Service(executable_path=webdriver_path)
                 driver = webdriver.Chrome(service=service, options=chrome_options)
+                
+                # 在此注入JS以修复WebDriver指纹
+                AntiSybilUtil.patch_webdriver_fingerprint(driver, env=user_id)
+
                 envs.append(AdsEnv(user_id, driver))
                 print(f"[INFO] 成功attach user_id={user_id}")
             else:
@@ -215,15 +220,35 @@ class AdsPowerUtil:
                     return False
 
 if __name__ == "__main__":
-    util = AdsPowerUtil()
-    user_ids = util.get_userids_from_file()
-    print(f"配置文件中的user_id: {user_ids}")
-    running_profiles = util.get_active_profiles(user_ids)
-    print(f"已启动的AdsPower实例: {running_profiles}")
-    if not running_profiles:
-        print("未获取到已启动的指纹浏览器实例！")
-    for profile in running_profiles:
-        print(f"操作user_id={profile['user_id']}，selenium={profile['selenium_address']}")
-        util.open_url_with_selenium(profile['selenium_address'], profile['webdriver_path'], "https://www.baidu.com")
-        # 任务完成后自动关闭浏览器
-        util.stop_browser(profile['user_id'])
+    from util.okx_wallet_util import OKXWalletUtil
+
+    # 1. 获取所有已启动的浏览器环境
+    ads_envs = get_all_ads_envs()
+    
+    if not ads_envs:
+        print("未发现任何已启动的浏览器环境，程序退出。")
+    else:
+        # 2. 初始化钱包工具
+        okx_util = OKXWalletUtil()
+        if not okx_util.PASSWORD:
+            print("[FATAL] 无法加载钱包密码，请检查 resource/okxPassword.txt 文件。程序退出。")
+        else:
+            # 3. 遍历所有环境，解锁钱包
+            for env in ads_envs:
+                print(f"--- 开始操作 User ID: {env.user_id} ---")
+                
+                # 解锁钱包
+                success = okx_util.unlock(env.driver)
+                
+                if success:
+                    print(f"User ID: {env.user_id} 的钱包解锁成功。")
+                else:
+                    print(f"[FAILED] User ID: {env.user_id} 的钱包解锁失败。")
+                
+                print("操作完成，浏览器将保持打开状态供您验证。")
+                
+                # 4. 关闭浏览器 (已按要求注释掉)
+                # AdsPowerUtil.stop_browser(env.user_id)
+                
+                print(f"--- User ID: {env.user_id} 操作结束 ---\n")
+

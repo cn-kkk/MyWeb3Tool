@@ -38,4 +38,6 @@ LOG_FILENAME_PREFIX = "myTool"
 LOG_FILENAME_FORMAT = "{prefix}_{timestamp}.log"
 
 # 验证配置
-API_URL_VALID_PREFIXES = ("http://",) 
+API_URL_VALID_PREFIXES = ("http://",)
+
+OKX_EXTENSION_ID = "mcohilncbfahbmgdjkbpemcciiolgcge"
