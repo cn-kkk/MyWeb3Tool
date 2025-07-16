@@ -26,7 +26,7 @@ class OKXWalletUtil:
         with open(self.password_file, 'r', encoding='utf-8') as f:
             pwd = f.readline().strip()
         if not pwd:
-            print(f"[WARN] ���码文件 {self.password_file} 为空")
+            print(f"[WARN] 文件 {self.password_file} 为空")
             return None
         return pwd
 
@@ -78,6 +78,119 @@ class OKXWalletUtil:
             print(f"[ERROR] 打开并解锁OKX钱包时发生未知错误: {e}")
             # 如果出错，也尝试切回主窗口
             driver.switch_to.window(main_window_handle)
+            return False
+
+    def choose_and_click_from_selector(self, driver, name, modal_tag=None, timeout=5):
+        """
+        更通用：自动推断modal标签
+        :param driver: Selenium WebDriver实例
+        :param name: 钱包名称（如"OKX Wallet"、"MetaMask"等）
+        :param modal_tag: 钱包选择器弹窗的tag名，默认None自动推断
+        :param timeout: 等待弹窗出现的超时时间（秒）
+        :return: True表示点击成功，False表示未找到或点击失败
+        """
+        try:
+            if modal_tag:
+                # 用指定modal_tag
+                modal = WebDriverWait(driver, timeout).until(
+                    EC.presence_of_element_located((By.TAG_NAME, modal_tag))
+                )
+                modals = [modal]
+            else:
+                # 自动查找所有modal类自定义标签
+                all_modals = driver.find_elements(By.XPATH, "//*[contains(local-name(), 'modal')]")
+                modals = []
+                for m in all_modals:
+                    if m.is_displayed():
+                        modals.append(m)
+                if not modals:
+                    print("未自动检测到modal弹窗")
+                    return False
+
+            for modal in modals:
+                js = f'''
+                function findWallet(root) {{
+                    let results = [];
+                    function traverse(node) {{
+                        if (!node) return;
+                        if (node.shadowRoot) {{
+                            traverse(node.shadowRoot);
+                        }}
+                        if (node.childNodes) {{
+                            node.childNodes.forEach(traverse);
+                        }}
+                        if (node.innerText && node.innerText.includes("{name}")) {{
+                            results.push(node);
+                        }}
+                    }}
+                    traverse(root.shadowRoot ? root.shadowRoot : root);
+                    return results;
+                }}
+                return findWallet(arguments[0]);
+                '''
+                nodes = driver.execute_script(js, modal)
+                if nodes:
+                    driver.execute_script("arguments[0].click();", nodes[0])
+                    print(f"已用JS点击shadowRoot下的钱包：{name}")
+                    return True
+            print(f"未找到可点击的钱包：{name}")
+            return False
+        except Exception as e:
+            print(f"查找{name}或点击失败: {e}")
+            return False
+
+    def website_connect_wallet(self, driver, timeout=5):
+        """
+        通用方法：在OKX钱包插件页面自动查找并点击'连接'按钮。
+        :param driver: Selenium WebDriver实例，需已切换到OKX钱包插件窗口
+        :param timeout: 查找超时时间（秒）
+        :return: True表示点击成功，False表示未找到或点击失败
+        """
+        try:
+            # 等待页面加载
+            time.sleep(2)
+            js = '''
+            function findConnect(root) {
+                let results = [];
+                function traverse(node) {
+                    if (!node) return;
+                    if (node.shadowRoot) {
+                        traverse(node.shadowRoot);
+                    }
+                    if (node.childNodes) {
+                        node.childNodes.forEach(traverse);
+                    }
+                    if (node.innerText && node.innerText.includes("连接")) {
+                        results.push(node);
+                    }
+                }
+                traverse(root.shadowRoot ? root.shadowRoot : root);
+                return results.map(function(node) {
+                    return {
+                        tag: node.tagName,
+                        className: node.className,
+                        innerText: node.innerText,
+                        ref: node
+                    };
+                });
+            }
+            return findConnect(document.body);
+            '''
+            connect_nodes = driver.execute_script(js)
+            if connect_nodes:
+                button_nodes = [node for node in connect_nodes if node['tag'] == 'BUTTON' and node['innerText'].strip() == '连接']
+                if button_nodes:
+                    driver.execute_script("arguments[0].click();", button_nodes[0]['ref'])
+                    time.sleep(2)
+                    return True
+                else:
+                    driver.execute_script("arguments[0].click();", connect_nodes[0]['ref'])
+                    time.sleep(2)
+                    return True
+            else:
+                raise RuntimeError("未找到可点击的'连接'按钮，请检查OKX钱包插件页面结构！")
+        except Exception as e:
+            print(f"[ERROR] Selenium点击OKX钱包连接按钮失败: {e}")
             return False
 
 if __name__ == '__main__':

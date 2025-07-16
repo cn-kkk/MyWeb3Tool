@@ -56,7 +56,7 @@ class PharosScript:
         
         try:
             LogUtil.log(self.ads_env, "执行UI交互以获取焦点并取消浮窗...")
-            pyautogui.click(x=500, y=500)
+            pyautogui.click(1300, 750)
             time.sleep(0.5)
             pyautogui.press('esc')
             LogUtil.log(self.ads_env, "UI交互完成。")
@@ -77,16 +77,13 @@ class PharosScript:
 
             # 2. 在弹窗中点击 "OKX Wallet"
             pharos_window_handle = self.driver.current_window_handle
-            
-            okx_option_xpath = "//*[contains(text(), 'OKX Wallet')]"
-            okx_option = WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, okx_option_xpath))
-            )
-            ActionChains(self.driver).move_to_element(okx_option).click().perform()
-            LogUtil.log(self.ads_env, "已通过ActionChains点击 'OKX Wallet' 选项，等待10秒...")
-            time.sleep(10)
+            # 用工具类方法自动查找并点击OKX Wallet
+            if not self.okx_util.choose_and_click_from_selector(self.driver, "OKX Wallet"):
+                raise RuntimeError("未能自动点击OKX Wallet，请检查钱包选择器结构！")
+            LogUtil.log(self.ads_env, "已自动点击 'OKX Wallet' 选项，等待5秒...")
+            time.sleep(5)
 
-            # 3. 查找并切换到已存在的OKX钱包页面
+            # 3. 查找并切换到OKX钱包插件页面，点击连接
             wallet_handle = None
             LogUtil.log(self.ads_env, "正在查找已打开的OKX钱包页面...")
             for handle in self.driver.window_handles:
@@ -95,32 +92,18 @@ class PharosScript:
                     wallet_handle = handle
                     LogUtil.log(self.ads_env, f"找到钱包页面: {self.driver.current_url}")
                     break
-            
             if not wallet_handle:
                 raise RuntimeError("无法在已打开的窗口中找到OKX钱包页面。")
-
-            # 4. 在钱包页面上点击确认
-            self.driver.switch_to.window(wallet_handle)
-            LogUtil.log(self.ads_env, "已切换到OKX钱包页面。")
-
-            confirm_button_xpath = "//button[text()='连接' or text()='确认']"
-            confirm_button = WebDriverWait(self.driver, 15).until(
-                EC.element_to_be_clickable((By.XPATH, confirm_button_xpath))
-            )
-            confirm_button.click()
-            LogUtil.log(self.ads_env, "已在钱包页面点击'连接/确认'按钮。")
-
-            # 5. 操作完成后，关闭钱包页面，切回主窗口
-            LogUtil.log(self.ads_env, "关闭钱包页面...")
-            self.driver.close()
+            # 等待钱包页面加载
+            time.sleep(2)
+            # 调用工具类方法自动点击'连接'按钮
+            if not self.okx_util.website_connect_wallet(self.driver):
+                raise RuntimeError("未能自动点击OKX钱包插件的'连接'按钮，请检查页面结构！")
+            LogUtil.log(self.ads_env, "已自动点击OKX钱包插件的'连接'按钮，等待5秒...")
+            time.sleep(5)
+            # 切换回pharos主页面
             self.driver.switch_to.window(pharos_window_handle)
-            LogUtil.log(self.ads_env, "已切回主窗口，等待最终验证...")
-            
-            address_xpath = "//button[contains(text(), '0x')]"
-            WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, address_xpath))
-            )
-            LogUtil.log(self.ads_env, "[SUCCESS] 钱包连接成功！初始化完成。")
+            LogUtil.log(self.ads_env, "已切换回Pharos主页面窗口。")
 
         except (TimeoutException, NoSuchElementException) as e:
             error_msg = f"连接钱包过程中失败: {e}"
