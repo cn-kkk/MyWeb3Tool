@@ -7,6 +7,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from util.okx_wallet_util import OKXWalletUtil
 from util.log_util import LogUtil
+from util.anti_sybil_util import AntiSybilUtil
 
 class PharosScript:
     """
@@ -53,10 +54,13 @@ class PharosScript:
         self.driver.get(self.PHAROS_URL)
         LogUtil.log(self.ads_env, "页面加载完成，等待10秒...")
         time.sleep(10)
-        
+        # 反女巫：页面加载后模拟鼠标滑动和短等待
+        AntiSybilUtil.simulate_mouse_move_and_slide(self.driver, area_selector='body', env=self.ads_env)
+        AntiSybilUtil.human_short_wait(env=self.ads_env)
         try:
             LogUtil.log(self.ads_env, "执行UI交互以获取焦点并取消浮窗...")
-            pyautogui.click(1300, 750)
+            # 反女巫：随机点击
+            AntiSybilUtil.simulate_random_click(self.driver, area_selector='body', env=self.ads_env)
             time.sleep(0.5)
             pyautogui.press('esc')
             LogUtil.log(self.ads_env, "UI交互完成。")
@@ -66,6 +70,9 @@ class PharosScript:
         # 步骤4: 连接网站钱包
         LogUtil.log(self.ads_env, "步骤4: 开始连接网站钱包...")
         try:
+            # 反女巫：连接钱包前模拟滚动和短等待
+            AntiSybilUtil.simulate_scroll(self.driver, env=self.ads_env)
+            AntiSybilUtil.human_short_wait(env=self.ads_env)
             # 1. 点击 "Connect Wallet"
             connect_button_xpath = "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'connect wallet')]"
             connect_button = WebDriverWait(self.driver, 20).until(
@@ -74,16 +81,15 @@ class PharosScript:
             connect_button.click()
             LogUtil.log(self.ads_env, "已点击 'Connect Wallet' 按钮，等待5秒...")
             time.sleep(5)
-
+            # 反女巫：选择钱包前模拟鼠标滑动
+            AntiSybilUtil.simulate_mouse_move_and_slide(self.driver, area_selector='body', env=self.ads_env)
             # 2. 在弹窗中点击 "OKX Wallet"
             pharos_window_handle = self.driver.current_window_handle
-            # 用工具类方法自动查找并点击OKX Wallet
             if not self.okx_util.choose_and_click_from_selector(self.driver, "OKX Wallet"):
                 raise RuntimeError("未能自动点击OKX Wallet，请检查钱包选择器结构！")
             LogUtil.log(self.ads_env, "已自动点击 'OKX Wallet' 选项，等待5秒...")
             time.sleep(5)
-
-            # 3. 查找并切换到OKX钱包插件页面，点击连接
+            # 反女巫：切换到钱包插件页面后模拟短等待
             wallet_handle = None
             LogUtil.log(self.ads_env, "正在查找已打开的OKX钱包页面...")
             for handle in self.driver.window_handles:
@@ -94,8 +100,8 @@ class PharosScript:
                     break
             if not wallet_handle:
                 raise RuntimeError("无法在已打开的窗口中找到OKX钱包页面。")
-            # 等待钱包页面加载
             time.sleep(2)
+            AntiSybilUtil.human_short_wait(env=self.ads_env)
             # 调用工具类方法自动点击'连接'按钮
             if not self.okx_util.website_connect_wallet(self.driver):
                 raise RuntimeError("未能自动点击OKX钱包插件的'连接'按钮，请检查页面结构！")
@@ -111,7 +117,20 @@ class PharosScript:
             raise RuntimeError(error_msg)
 
     def task_check_in(self):
-        pass
+        """
+        Pharos网页签到任务：自动查找并点击Check in按钮
+        """
+        try:
+            checkin_btn = WebDriverWait(self.driver, 15).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Check in')]"))
+            )
+            checkin_btn.click()
+            LogUtil.log(self.ads_env, "已自动点击Check in签到按钮")
+            time.sleep(5)
+            return True
+        except Exception as e:
+            LogUtil.log(self.ads_env, f"[ERROR] 签到按钮点击失败: {e}")
+            return False
 
     def run(self):
         self.task_check_in()
