@@ -68,7 +68,7 @@ def get_all_ads_envs():
     envs = []
     for user_id in user_ids:
         try:
-            resp = requests.get(f"{api_base}{API_ENDPOINTS['browser_active']}?user_id={user_id}", headers=headers)
+            resp = requests.get(f"{api_base}{API_ENDPOINTS['browser_active']}?user_id={user_id}", headers=headers, proxies={'http': None, 'https': None})
             data = resp.json()
             if data.get('code') == 0 and data.get('data', {}).get('ws', {}).get('selenium'):
                 selenium_address = data['data']['ws']['selenium']
@@ -79,6 +79,7 @@ def get_all_ads_envs():
                 crx_path = os.path.join('resource', 'okxwallet.crx')
                 if os.path.exists(crx_path):
                     print(f"[INFO] 检测到OKX钱包插件: {crx_path}，attach模式下无法动态加载，仅新建driver时生效")
+
                 service = Service(executable_path=webdriver_path)
                 driver = webdriver.Chrome(service=service, options=chrome_options)
                 
@@ -153,7 +154,7 @@ class AdsPowerUtil:
         
         running = []
         for user_id in user_ids:
-            resp = requests.get(f"{api_base}{API_ENDPOINTS['browser_active']}?user_id={user_id}", headers=headers)
+            resp = requests.get(f"{api_base}{API_ENDPOINTS['browser_active']}?user_id={user_id}", headers=headers, proxies={'http': None, 'https': None})
             print(f"[DEBUG] {API_ENDPOINTS['browser_active']}?user_id={user_id} 状态码: {resp.status_code}, text: {repr(resp.text)}")
             try:
                 data = resp.json()
