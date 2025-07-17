@@ -139,58 +139,40 @@ class OKXWalletUtil:
             print(f"查找{name}或点击失败: {e}")
             return False
 
-    def website_connect_wallet(self, driver, timeout=5):
+
+    def confirm_or_connect_native(self, driver, timeout=5):
         """
-        通用方法：在OKX钱包插件页面自动查找并点击'连接'按钮。
+        用Selenium原生查找并点击'确认'或'连接'按钮，优先点击'确认'。
         :param driver: Selenium WebDriver实例，需已切换到OKX钱包插件窗口
         :param timeout: 查找超时时间（秒）
         :return: True表示点击成功，False表示未找到或点击失败
         """
         try:
-            # 等待页面加载
             time.sleep(2)
-            js = '''
-            function findConnect(root) {
-                let results = [];
-                function traverse(node) {
-                    if (!node) return;
-                    if (node.shadowRoot) {
-                        traverse(node.shadowRoot);
-                    }
-                    if (node.childNodes) {
-                        node.childNodes.forEach(traverse);
-                    }
-                    if (node.innerText && node.innerText.includes("连接")) {
-                        results.push(node);
-                    }
-                }
-                traverse(root.shadowRoot ? root.shadowRoot : root);
-                return results.map(function(node) {
-                    return {
-                        tag: node.tagName,
-                        className: node.className,
-                        innerText: node.innerText,
-                        ref: node
-                    };
-                });
-            }
-            return findConnect(document.body);
-            '''
-            connect_nodes = driver.execute_script(js)
-            if connect_nodes:
-                button_nodes = [node for node in connect_nodes if node['tag'] == 'BUTTON' and node['innerText'].strip() == '连接']
-                if button_nodes:
-                    driver.execute_script("arguments[0].click();", button_nodes[0]['ref'])
-                    time.sleep(2)
-                    return True
-                else:
-                    driver.execute_script("arguments[0].click();", connect_nodes[0]['ref'])
-                    time.sleep(2)
-                    return True
+            buttons = driver.find_elements(By.CSS_SELECTOR, 'button[data-testid="okd-button"]')
+            confirm_btn = None
+            connect_btn = None
+            for btn in buttons:
+                try:
+                    text = btn.text.strip()
+                    print(f"[DEBUG] OKX按钮text: {text}")
+                    if "确认" in text:
+                        confirm_btn = btn
+                    elif "连接" in text:
+                        connect_btn = btn
+                except Exception as e:
+                    print(f"[DEBUG] 获取按钮text异常: {e}")
+            target_btn = confirm_btn or connect_btn
+            if target_btn:
+                WebDriverWait(driver, timeout).until(EC.element_to_be_clickable(target_btn))
+                target_btn.click()
+                time.sleep(2)
+                return True
             else:
-                raise RuntimeError("未找到可点击的'连接'按钮，请检查OKX钱包插件页面结构！")
+                print("[WARN] 未找到'确认'或'连接'按钮")
+                return False
         except Exception as e:
-            print(f"[ERROR] Selenium点击OKX钱包连接按钮失败: {e}")
+            print(f"[ERROR] Selenium点击OKX钱包确认/连接按钮失败: {e}")
             return False
 
 if __name__ == '__main__':

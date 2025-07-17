@@ -7,77 +7,43 @@ from util.log_util import LogUtil # 导入新的日志工具
 
 class AntiSybilUtil:
     @staticmethod
-    def simulate_mouse_move_and_slide(driver, area_selector='body', total_time=4.0, steps=40, env=None):
+    def simulate_mouse_move_and_slide(driver, area_selector='body', total_time=2.0, steps=10, env=None):
         """
-        鼠标先移动到区域左上角的随机点，2s内随机函数滑动，再2s内随机函数滑动。
+        在当前页面区域内简单移动。
         """
-        import math
         try:
-            LogUtil.log(env, "开始模拟鼠标滑动...")
-            area = driver.find_element(By.CSS_SELECTOR, area_selector)
-            location = area.location
-            size = area.size
-            left = location['x']
-            top = location['y']
-            width = size['width']
-            height = size['height']
-            margin = 10
-            # 随机初始点
-            cur_x = left + random.randint(margin, width//4)
-            cur_y = top + random.randint(margin, height//4)
-            ActionChains(driver).move_to_element_with_offset(area, cur_x-left, cur_y-top).perform()
-            LogUtil.log(env, f"鼠标已移动到初始点 ({cur_x},{cur_y})")
-            # 第一段：2s内随机抛物线
-            points1 = []
-            ctrl1_x = cur_x + random.randint(30, 80)
-            ctrl1_y = cur_y - random.randint(10, 40)
-            end1_x = cur_x + random.randint(40, 120)
-            end1_y = cur_y + random.randint(20, 60)
-            for i in range(steps//2):
-                t = i / (steps//2-1)
-                x = int((1-t)**2*cur_x + 2*(1-t)*t*ctrl1_x + t**2*end1_x)
-                y = int((1-t)**2*cur_y + 2*(1-t)*t*ctrl1_y + t**2*end1_y)
-                points1.append((x, y))
-            # 第二段：2s内另一随机抛物线
-            ctrl2_x = end1_x + random.randint(30, 80)
-            ctrl2_y = end1_y - random.randint(10, 40)
-            end2_x = end1_x + random.randint(40, 120)
-            end2_y = end1_y + random.randint(20, 60)
-            points2 = []
-            for i in range(steps//2):
-                t = i / (steps//2-1)
-                x = int((1-t)**2*end1_x + 2*(1-t)*t*ctrl2_x + t**2*end2_x)
-                y = int((1-t)**2*end1_y + 2*(1-t)*t*ctrl2_y + t**2*end2_y)
-                points2.append((x, y))
-            # 合并轨迹，去重
-            points = [points1[0]] + [pt for i, pt in enumerate(points1[1:], 1) if pt != points1[i-1]]
-            points += [pt for i, pt in enumerate(points2, 0) if pt != points2[i-1]]
-            # 分步滑动
-            for i in range(1, len(points)):
-                dx = points[i][0] - points[i-1][0]
-                dy = points[i][1] - points[i-1][1]
-                ActionChains(driver).move_by_offset(dx, dy).perform()
-                time.sleep(total_time/steps)
-            LogUtil.log(env, f"鼠标滑动完成，轨迹点数: {len(points)}")
+            LogUtil.log(env, "开始简单鼠标滑动（无滚动）...")
+            window_size = driver.get_window_size()
+            maxLength = window_size['width']
+            maxHeight = window_size['height']
+            start_x = int(maxLength * 0.05)
+            start_y = int(maxHeight * 0.15)
+            end_x = int(maxLength * 0.12)
+            end_y = int(maxHeight * 0.18)
+            ActionChains(driver).move_by_offset(start_x, start_y).perform()
+            time.sleep(total_time / steps)
+            ActionChains(driver).move_by_offset(end_x - start_x, end_y - start_y).perform()
+            time.sleep(total_time / steps)
+            ActionChains(driver).move_by_offset(-end_x, -end_y).perform()
+            LogUtil.log(env, f"鼠标滑动完成: ({start_x},{start_y}) -> ({end_x},{end_y})")
         except Exception as e:
             LogUtil.log(env, f"鼠标移动异常: {e}")
 
     @staticmethod
     def simulate_random_click(driver, area_selector='body', env=None):
         """
-        随机点击页面无关区域，确保坐标在可见区域内。
+        在当前页面视口内，x在0~maxLength*0.15，y在maxHeight*0.1~maxHeight*0.2之间生成，然后点击。
+        坐标为页面左上角绝对坐标。
         """
         try:
-            LogUtil.log(env, "开始模拟随机点击...")
-            area = driver.find_element(By.CSS_SELECTOR, area_selector)
-            location = area.location
-            size = area.size
-            margin = 10
-            x = location['x'] + random.randint(margin, max(margin, size['width'] - margin - 1))
-            y = location['y'] + random.randint(margin, max(margin, size['height'] - margin - 1))
-            driver.execute_script(f"window.scrollTo({x-100}, {y-100});")
-            ActionChains(driver).move_by_offset(x, y).click().perform()
-            ActionChains(driver).move_by_offset(-x, -y).perform()
+            LogUtil.log(env, "开始模拟随机点击（无滚动）...")
+            window_size = driver.get_window_size()
+            maxLength = window_size['width']
+            maxHeight = window_size['height']
+            x = int(random.uniform(0, maxLength * 0.15))
+            y = int(random.uniform(maxHeight * 0.1, maxHeight * 0.2))
+            body = driver.find_element(By.TAG_NAME, 'body')
+            ActionChains(driver).move_to_element_with_offset(body, x, y).click().perform()
             LogUtil.log(env, f"随机点击完成: ({x},{y})")
         except Exception as e:
             LogUtil.log(env, f"随机点击异常: {e}")
@@ -85,14 +51,20 @@ class AntiSybilUtil:
     @staticmethod
     def simulate_scroll(driver, min_scroll=100, max_scroll=800, env=None):
         """
-        随机滚动页面。
+        从当前位置向下随机滚动，停0.5s后再滚动回原来的位置。
         """
         try:
+            time.sleep(0.2)  # 等待页面稳定
+            original_x = driver.execute_script("return window.scrollX;")
+            original_y = driver.execute_script("return window.scrollY;")
             scroll_y = random.randint(min_scroll, max_scroll)
-            LogUtil.log(env, f"开始滚动页面: {scroll_y}px")
+            LogUtil.log(env, f"开始滚动页面: {scroll_y}px (原始位置: {original_y})")
             driver.execute_script(f"window.scrollBy(0, {scroll_y});")
-            time.sleep(random.uniform(0.2, 0.8))
-            LogUtil.log(env, "滚动完成")
+            time.sleep(0.5)
+            driver.execute_script(f"window.scrollTo({original_x}, {original_y});")
+            time.sleep(0.2)
+            current_y = driver.execute_script("return window.scrollY;")
+            LogUtil.log(env, f"已滚动回原始位置: {original_y}，当前scrollY: {current_y}")
         except Exception as e:
             LogUtil.log(env, f"滚动异常: {e}")
 
