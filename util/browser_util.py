@@ -1,3 +1,18 @@
+"""
+.. deprecated:: 1.0.0
+    This module is deprecated and will be removed in a future version.
+    Its functionality has been replaced by `util.ads_browser_util` which uses DrissionPage.
+
+This module contains the old Selenium-based implementation for browser automation.
+"""
+import warnings
+
+warnings.warn(
+    "The 'browser_util' module is deprecated. Use 'ads_browser_util' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import requests
 import time
 import os
@@ -95,6 +110,41 @@ def get_all_ads_envs():
     return envs
 
 class AdsPowerUtil:
+    @staticmethod
+    def get_browser(user_id: str, api_base: str):
+        """
+        根据单个user_id启动或连接到一个AdsPower浏览器实例。
+        返回一个Selenium WebDriver对象。
+        """
+        if not api_base:
+            print(f"[ERROR] API地址未提供。")
+            return None
+        
+        headers = get_headers()
+        try:
+            resp = requests.get(f"{api_base}{API_ENDPOINTS['browser_active']}?user_id={user_id}", headers=headers, proxies={'http': None, 'https': None})
+            data = resp.json()
+            if data.get('code') == 0 and data.get('data', {}).get('ws', {}).get('selenium'):
+                selenium_address = data['data']['ws']['selenium']
+                webdriver_path = data['data']['webdriver']
+                
+                chrome_options = Options()
+                chrome_options.add_experimental_option("debuggerAddress", selenium_address)
+                
+                service = Service(executable_path=webdriver_path)
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+                
+                AntiSybilUtil.patch_webdriver_fingerprint(driver, env=user_id)
+                
+                print(f"[INFO] 成功 attach user_id={user_id}")
+                return driver
+            else:
+                print(f"[WARN] user_id={user_id} 未启动或API返回错误: {data.get('msg', 'N/A')}")
+                return None
+        except Exception as e:
+            print(f"[ERROR] attach user_id={user_id} 失败: {e}")
+            return None
+
     @staticmethod
     def get_userids_from_file():
         """从resource/browser.txt读取所有user_id（跳过第一行API配置）"""
@@ -252,4 +302,3 @@ if __name__ == "__main__":
                 # AdsPowerUtil.stop_browser(env.user_id)
                 
                 print(f"--- User ID: {env.user_id} 操作结束 ---\n")
-

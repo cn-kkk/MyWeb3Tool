@@ -12,12 +12,28 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize, QTimer, pyqtSignal, QThread
 from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon
-from util.socks5_util import Socks5Util
-from util.wallet_util import WalletUtil
-from util.browser_util import AdsPowerUtil
+
+# 导入新的后端控制器
+from applicationController import app_controller
+
 from config import APP_NAME, UI_FONTS, LOGS_DIR, LOG_FILENAME_PREFIX, LOG_FILENAME_FORMAT, API_URL_VALID_PREFIXES
-import importlib.util
-import inspect
+
+
+class BackendInitializationThread(QThread):
+    """用于在后台初始化控制器的线程"""
+    initialization_done = pyqtSignal(bool, str)
+
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+
+    def run(self):
+        try:
+            self.controller.initialize_app()
+            self.initialization_done.emit(True, "Backend initialized successfully.")
+        except Exception as e:
+            self.initialization_done.emit(False, f"Backend initialization failed: {e}")
+
 
 def resource_path(relative_path):
     """获取资源文件的绝对路径，兼容 PyInstaller 打包和源码运行"""
@@ -317,7 +333,6 @@ class IPConfigWidget(QWidget):
     def __init__(self, log_widget):
         super().__init__()
         self.log_widget = log_widget
-        self.socks5_util = Socks5Util()
         self.is_editing = False
         self.init_ui()
         self.load_config()
@@ -389,7 +404,7 @@ class IPConfigWidget(QWidget):
     
     def load_config(self):
         """加载配置"""
-        proxies = self.socks5_util.read_proxies()
+        proxies = app_controller.get_ip_configs()
         configs = []
         for i, proxy in enumerate(proxies, 1):
             config = {
@@ -465,7 +480,7 @@ class IPConfigWidget(QWidget):
                 "password": item["password"]
             }
             configs.append(config)
-        if self.socks5_util.save_socks5_config(configs):
+        if app_controller.save_ip_configs(configs):
             self.is_editing = False
             self.edit_btn.setText("编辑")
             self.edit_btn.setStyleSheet('''
@@ -522,7 +537,6 @@ class WalletConfigWidget(QWidget):
     def __init__(self, log_widget):
         super().__init__()
         self.log_widget = log_widget
-        self.wallet_util = WalletUtil()
         self.is_editing = False
         self.init_ui()
         self.load_config()
@@ -594,7 +608,7 @@ class WalletConfigWidget(QWidget):
     
     def load_config(self):
         """加载配置"""
-        wallets = self.wallet_util.read_wallets()
+        wallets = app_controller.get_wallet_configs()
         configs = []
         for i, wallet in enumerate(wallets, 1):
             config = {
@@ -666,7 +680,7 @@ class WalletConfigWidget(QWidget):
                 "address": item["address"]
             }
             configs.append(config)
-        if self.wallet_util.save_wallet_config(configs):
+        if app_controller.save_wallet_configs(configs):
             self.is_editing = False
             self.edit_btn.setText("编辑")
             self.edit_btn.setStyleSheet('''
@@ -723,7 +737,6 @@ class BrowserConfigWidget(QWidget):
     def __init__(self, log_widget):
         super().__init__()
         self.log_widget = log_widget
-        self.browser_util = AdsPowerUtil()
         self.is_editing = False
         self.init_ui()
         self.load_config()
@@ -814,16 +827,8 @@ class BrowserConfigWidget(QWidget):
     
     def load_config(self):
         """加载配置"""
-        if os.path.exists("resource/browser.txt"):
-            try:
-                with open("resource/browser.txt", 'r', encoding='utf-8') as f:
-                    content = f.read()
-                self.text_edit.setPlainText(content)
-            except Exception as e:
-                print(f"读取browser配置失败: {e}")
-                self.text_edit.setPlainText("")
-        else:
-            self.text_edit.setPlainText("")
+        content = app_controller.get_browser_configs()
+        self.text_edit.setPlainText(content)
     
     def toggle_edit(self):
         self.is_editing = not self.is_editing
@@ -894,25 +899,13 @@ class BrowserConfigWidget(QWidget):
                 }
             ''')
             self.save_btn.setEnabled(False)
-            self.load_config()  # 重新加载，取消编辑
+            self.load_config()  # 重新加载，取消编���
             self.log_widget.append_log("取消浏览器ID配置编辑")
     
     def save_config(self):
         """保存配置"""
         content = self.text_edit.toPlainText()
-        
-        try:
-            os.makedirs("resource", exist_ok=True)
-            with open("resource/browser.txt", 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            # 验证配置格式
-            lines = content.strip().split('\n')
-            if len(lines) >= 1:
-                api_base = lines[0].strip()
-                if not api_base.startswith(('http://', 'https://')):
-                    QMessageBox.warning(self, "警告", "第一行API地址格式不正确，应为http://或https://开头")
-                    return False
+        if app_controller.save_browser_configs(content):
             self.log_widget.append_log(f"浏览器配置保存成功")
             QMessageBox.information(self, "成功", "浏览器配置保存成功")
             self.is_editing = False
@@ -949,48 +942,8 @@ class BrowserConfigWidget(QWidget):
                 }
             ''')
             self.load_config()
-            return True
-        except Exception as e:
-            print(f"保存browser配置失败: {e}")
-            QMessageBox.critical(self, "错误", f"浏览器配置保存失败: {e}")
-            return False
-            self.edit_btn.setText("编辑")
-            self.edit_btn.setStyleSheet('''
-                QPushButton {
-                    background-color: #0078d4;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 5px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #106ebe;
-                }
-                QPushButton:pressed {
-                    background-color: #005a9e;
-                }
-            ''')
-            self.save_btn.setEnabled(False)
-            self.text_edit.setReadOnly(True)
-            self.text_edit.setStyleSheet('''
-                QPlainTextEdit {
-                    background-color: white;
-                    border: 1px solid #d0d0d0;
-                    border-radius: 8px;
-                    padding: 10px;
-                    line-height: 1.5;
-                }
-                QPlainTextEdit:focus {
-                    border-color: #0078d4;
-                }
-            ''')
-            self.load_config()
-            self.log_widget.append_log(f"浏览器ID配置保存成功: {len(user_ids)}个ID")
-            QMessageBox.information(self, "成功", "浏览器ID配置保存成功")
         else:
-            QMessageBox.critical(self, "错误", "浏览器ID配置保存失败")
+            QMessageBox.critical(self, "错误", "浏览器配置保存失败")
 
     def exit_edit_mode(self):
         self.is_editing = False
@@ -1128,15 +1081,13 @@ class ProjectTab(QWidget):
     def __init__(self, log_widget):
         super().__init__()
         self.log_widget = log_widget
+        self.project_classes = []
         self.init_ui()
 
     def init_ui(self):
         layout = QHBoxLayout()
         # 左侧sidebar，使用StyledSidebar风格
         self.sidebar = StyledSidebar([], 200)
-        self.project_classes = self.load_project_scripts()
-        for proj in self.project_classes:
-            self.sidebar.addItem(proj['project_name'])
         self.sidebar.currentRowChanged.connect(self.on_sidebar_changed)
         layout.addWidget(self.sidebar)
         # 分隔线
@@ -1147,97 +1098,87 @@ class ProjectTab(QWidget):
         layout.addWidget(splitter)
         # 右侧功能区
         self.content_stack = QStackedWidget()
-        for proj in self.project_classes:
-            self.content_stack.addWidget(self.create_project_widget(proj))
         layout.addWidget(self.content_stack)
         self.setLayout(layout)
+
+    def populate_projects(self, projects):
+        """用从控制器获取的项目数据填充UI"""
+        self.project_classes = projects
+        # 清空旧项目
+        self.sidebar.clear()
+        while self.content_stack.count() > 0:
+            widget = self.content_stack.widget(0)
+            self.content_stack.removeWidget(widget)
+            widget.deleteLater()
+            
+        # 添加新项目
+        for proj in self.project_classes:
+            self.sidebar.addItem(proj['project_name'])
+            self.content_stack.addWidget(self.create_project_widget(proj))
+            
         if self.project_classes:
             self.sidebar.setCurrentRow(0)
-
-    def load_project_scripts(self):
-        """扫描myProject目录，加载所有脚本类及元信息"""
-        project_dir = os.path.join(os.getcwd(), 'myProject')
-        projects = []
-        if not os.path.exists(project_dir):
-            return projects
-        for fname in os.listdir(project_dir):
-            if fname.endswith('.py') and not fname.startswith('_'):
-                fpath = os.path.join(project_dir, fname)
-                spec = importlib.util.spec_from_file_location(fname[:-3], fpath)
-                if spec and spec.loader:
-                    module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(module)
-                    # 查找以Script结尾的类
-                    for name, obj in inspect.getmembers(module, inspect.isclass):
-                        if name.endswith('Script') and hasattr(obj, 'project_name'):
-                            # 收集所有task方法
-                            tasks = []
-                            for attr in dir(obj):
-                                if attr.startswith('task_'):
-                                    method = getattr(obj, attr)
-                                    if callable(method):
-                                        tasks.append({
-                                            'name': attr,
-                                            'desc': method.__doc__ or ''
-                                        })
-                            projects.append({
-                                'project_name': getattr(obj, 'project_name', name),
-                                'project_desc': getattr(obj, 'project_desc', ''),
-                                'tasks': tasks
-                            })
-        return projects
 
     def create_project_widget(self, proj):
         widget = QWidget()
         vlayout = QVBoxLayout()
-        # 一键运行说明
-        run_all_desc = QLabel(f"一键运行所有任务：将依次执行{proj['project_name']}的全部任务")
-        run_all_desc.setFont(QFont('Microsoft YaHei', 14, QFont.Weight.Bold))
-        run_all_desc.setStyleSheet('color: #333; margin: 18px 0 6px 0;')
-        vlayout.addWidget(run_all_desc)
+        
+        # 项目描述
+        project_desc_label = QLabel(proj.get('project_desc', '没有项目描述。'))
+        project_desc_label.setFont(QFont('Microsoft YaHei', 12))
+        project_desc_label.setStyleSheet('color: #666; margin: 10px 0;')
+        vlayout.addWidget(project_desc_label)
+
         # 一键运行所有任务按钮
-        run_all_btn = QPushButton("一键运行所有任务")
+        run_all_btn = QPushButton(f"一键运行 {proj['project_name']} 所有任务")
         run_all_btn.setStyleSheet('''
             QPushButton {
-                background-color: #0078d4;
-                color: white;
-                font-weight: bold;
-                font-size: 18px;
-                padding: 16px 0;
-                border-radius: 8px;
-                min-width: 220px;
-                max-width: 320px;
+                background-color: #0078d4; color: white; font-weight: bold;
+                font-size: 16px; padding: 12px; border-radius: 8px;
             }
-            QPushButton:hover {
-                background-color: #106ebe;
-            }
+            QPushButton:hover { background-color: #106ebe; }
         ''')
+        # "一键运行"的功能是把该项目的所有task都分发一遍
+        run_all_btn.clicked.connect(
+            lambda _, p=proj: [
+                app_controller.dispatch_task(p['project_name'], task['name']) for task in p['tasks']
+            ]
+        )
         vlayout.addWidget(run_all_btn, alignment=Qt.AlignmentFlag.AlignLeft)
-        # 每个task
+        
+        # 添加分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        vlayout.addWidget(line)
+
+        # 每个task的单独运行按钮
         for task in proj['tasks']:
-            task_group = QVBoxLayout()
-            task_label = QLabel(f"{task['name']}: {task['desc']}")
-            task_label.setFont(QFont('Microsoft YaHei', 12, QFont.Weight.Bold))
-            task_label.setStyleSheet('color: #333; margin: 14px 0 4px 0;')
-            task_btn = QPushButton(f"单独运行 {task['name']}")
+            task_group_layout = QHBoxLayout()
+            
+            task_label = QLabel(f"<b>{task['name']}</b>: {task['desc']}")
+            task_label.setWordWrap(True)
+            
+            task_btn = QPushButton(f"运行")
+            task_btn.setFixedWidth(100)
             task_btn.setStyleSheet('''
                 QPushButton {
-                    background-color: #107c10;
-                    color: white;
-                    font-weight: bold;
-                    font-size: 18px;
-                    padding: 18px 0;
-                    border-radius: 10px;
-                    min-width: 240px;
-                    max-width: 340px;
+                    background-color: #107c10; color: white; font-weight: bold;
+                    font-size: 14px; padding: 8px; border-radius: 5px;
                 }
-                QPushButton:hover {
-                    background-color: #0e6e0e;
-                }
+                QPushButton:hover { background-color: #0e6e0e; }
             ''')
-            task_group.addWidget(task_label)
-            task_group.addWidget(task_btn, alignment=Qt.AlignmentFlag.AlignLeft)
-            vlayout.addLayout(task_group)
+            # "单独运行"的功能是只分发这一个task
+            task_btn.clicked.connect(
+                lambda _, p=proj, t=task: app_controller.dispatch_task(p['project_name'], t['name'])
+            )
+            
+            task_group_layout.addWidget(task_label)
+            task_group_layout.addStretch()
+            task_group_layout.addWidget(task_btn)
+            
+            vlayout.addLayout(task_group_layout)
+
         vlayout.addStretch()
         widget.setLayout(vlayout)
         return widget
@@ -1249,7 +1190,11 @@ class MyToolApplication(QWidget):
     """主应用程序窗口"""
     def __init__(self):
         super().__init__()
+        # 1. 使用后端的控制器单例
+        self.controller = app_controller
         self.init_ui()
+        # 2. 在后台线程中启动初始化
+        self.start_backend_initialization()
         
     def init_ui(self):
         # 设置窗口属性
@@ -1326,10 +1271,25 @@ class MyToolApplication(QWidget):
         self.setLayout(main_layout)
         
         # 记录启动日志
-
+        self.log_widget.append_log("应用程序UI已加载，正在初始化后端...")
         
         self.tab_widget.tabBar().installEventFilter(self)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
+
+    def start_backend_initialization(self):
+        self.init_thread = BackendInitializationThread(self.controller)
+        self.init_thread.initialization_done.connect(self.on_backend_initialized)
+        self.init_thread.start()
+
+    def on_backend_initialized(self, success, message):
+        self.log_widget.append_log(f"后端初始化结果: {message}")
+        if success:
+            # 初始化成功后，用获取到的数据填充UI
+            self.project_tab.populate_projects(self.controller.projects)
+            self.log_widget.append_log("项目选项卡已更新.")
+        else:
+            # 初始化失败，可以弹窗提示
+            QMessageBox.critical(self, "后端初始化失败", message)
         
     def eventFilter(self, obj, event):
         if obj == self.tab_widget.tabBar() and event.type() == event.MouseButtonPress:
@@ -1359,11 +1319,15 @@ class MyToolApplication(QWidget):
             pass
     
     def closeEvent(self, event):
+        # 3. 在关闭时调用后端的shutdown方法
+        self.log_widget.append_log("应用程序正在关闭，开始释放后端资源...")
+        self.controller.shutdown()
+        self.log_widget.append_log("后端资源已释放。")
+        
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
             if hasattr(widget, 'is_editing') and widget.is_editing:
                 widget.exit_edit_mode()
-        self.log_widget.append_log("应用程序正在关闭...")
         self.log_widget.flush_log_buffer()
         super().closeEvent(event)
 

@@ -1,3 +1,18 @@
+"""
+.. deprecated:: 1.0.0
+    This module is deprecated and will be removed in a future version.
+    Please use `myProject.pharosScript` instead.
+
+This module contains the old Selenium-based implementation for Pharos tasks.
+"""
+import warnings
+
+warnings.warn(
+    "The 'pharos' module is deprecated. Please use 'pharosScript' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import time
 import pyautogui
 from selenium.webdriver.common.by import By
@@ -8,6 +23,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from util.okx_wallet_util import OKXWalletUtil
 from util.log_util import LogUtil
 from util.anti_sybil_util import AntiSybilUtil
+from config import OKX_EXTENSION_ID
 
 class PharosScript:
     """
@@ -15,7 +31,6 @@ class PharosScript:
     """
     project_name = "Pharos"
     PHAROS_URL = "https://testnet.pharosnetwork.xyz/experience"
-    OKX_WALLET_EXTENSION_ID = "mcohilncbfahbmgdjkbpemcciiolgcge"
 
     def __init__(self, ads_env):
         """
@@ -92,14 +107,14 @@ class PharosScript:
                     raise RuntimeError("未能自动点击OKX Wallet，请检查钱包选择器结构！")
                 LogUtil.log(self.ads_env, "已自动点击 'OKX Wallet' 选项，等待5秒...")
                 time.sleep(5)
-            # 反女巫：切换到钱包插件页面后模拟短等待
+            # 切换到钱包插件页面
             pharos_window_handle = self.driver.current_window_handle
             wallet_handle = None
             found_url = None
             LogUtil.log(self.ads_env, "正在查找已打开的OKX钱包页面...")
             for handle in self.driver.window_handles:
                 self.driver.switch_to.window(handle)
-                if self.OKX_WALLET_EXTENSION_ID in self.driver.current_url:
+                if OKX_EXTENSION_ID in self.driver.current_url:
                     wallet_handle = handle
                     found_url = self.driver.current_url
                     break
@@ -155,6 +170,24 @@ class PharosScript:
         except Exception as e:
             LogUtil.log(self.ads_env, f"[ERROR] 签到按钮点击失败: {e}")
             return False
+
+    def task_swap(self):
+        """
+        Pharos网页Swap任务：自动查找并点击Swap按钮，并等待新页面10秒
+        """
+        try:
+            swap_btn = WebDriverWait(self.driver, 15).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'beZyFg') and text()='Swap']"))
+            )
+            swap_btn.click()
+            LogUtil.log(self.ads_env, "已自动点击Swap按钮，等待新页面加载...")
+        except Exception as e:
+            LogUtil.log(self.ads_env, f"[ERROR] Swap按钮点击失败: {e}")
+            return False
+
+        time.sleep(10)
+        LogUtil.log(self.ads_env, "新页面已等待10秒。")
+        return True
 
     def run(self):
         self.task_check_in()

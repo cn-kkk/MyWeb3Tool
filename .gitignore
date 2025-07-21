@@ -23,3 +23,6 @@ resource/*.txt
 
 #gemini
 .env
+
+#cline
+.cline_rules

@@ -1,3 +1,18 @@
+"""
+.. deprecated:: 1.0.0
+    This module is deprecated and will be removed in a future version.
+    Please use `util.anti_sybil_dp_util` instead, which is designed for DrissionPage.
+
+This module contains the old Selenium-based implementation for anti-sybil measures.
+"""
+import warnings
+
+warnings.warn(
+    "The 'anti_sybil_util' module is deprecated. Use 'anti_sybil_dp_util' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 import random
 import time
 from selenium.webdriver.common.action_chains import ActionChains
@@ -109,7 +124,7 @@ class AntiSybilUtil:
 
     @staticmethod
     def human_long_wait(env=None):
-        t = random.uniform(10, 20)
+        t = random.uniform(10, 15)
         LogUtil.log(env, f"长等待 {t:.2f}s")
         time.sleep(t)
         return t
