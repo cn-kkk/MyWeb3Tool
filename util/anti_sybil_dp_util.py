@@ -16,7 +16,7 @@ class AntiSybilDpUtil:
     """
 
     @staticmethod
-    def human_short_wait(user_id: str = None):
+    def human_short_wait():
         """
         人性化的短等待，模拟思考或网络延迟。
         """
@@ -24,7 +24,7 @@ class AntiSybilDpUtil:
         time.sleep(delay)
 
     @staticmethod
-    def human_long_wait(user_id: str = None):
+    def human_long_wait():
         """
         人性化的长等待，用于等待页面加载或复杂操作。
         """
@@ -32,7 +32,7 @@ class AntiSybilDpUtil:
         time.sleep(delay)
 
     @staticmethod
-    def simulate_scroll(page: ChromiumPage, user_id: str = None):
+    def simulate_scroll(page: ChromiumPage):
         """
         在页面上模拟一次自然的向下滚动，然后滚动回顶部。
         """
@@ -41,14 +41,14 @@ class AntiSybilDpUtil:
         try:
             scroll_distance = random.randint(300, 800)
             page.scroll.down(scroll_distance)
-            AntiSybilDpUtil.human_short_wait(user_id)
+            AntiSybilDpUtil.human_short_wait()
             page.scroll.to_top()
         except Exception:
             # 作为非关键操作，静默失败
             pass
 
     @staticmethod
-    def simulate_mouse_move(page: ChromiumPage, user_id: str = None):
+    def simulate_mouse_move(page: ChromiumPage):
         """
         在页面内模拟几次无意义的鼠标移动。
         """
@@ -67,7 +67,7 @@ class AntiSybilDpUtil:
             pass
 
     @staticmethod
-    def simulate_random_click(page: ChromiumPage, user_id: str = None):
+    def simulate_random_click(page: ChromiumPage):
         """
         在页面视口的左上角区域内模拟一次随机点击。
         """
@@ -85,7 +85,7 @@ class AntiSybilDpUtil:
             pass
 
     @staticmethod
-    def simulate_typing(element: ChromiumElement, text: str, user_id: str = None):
+    def simulate_typing(element: ChromiumElement, text: str):
         """
         模拟真人输入：使用DrissionPage的by_word模式，并增加随机停顿。
         """
@@ -95,9 +95,9 @@ class AntiSybilDpUtil:
             # 10%的概率完全重打一遍
             if random.random() < 0.1:
                 element.input(text, by_word=True, interval=random.uniform(0.08, 0.2))
-                AntiSybilDpUtil.human_short_wait(user_id)
+                AntiSybilDpUtil.human_short_wait()
                 element.clear()
-                AntiSybilDpUtil.human_short_wait(user_id)
+                AntiSybilDpUtil.human_short_wait()
 
             # 正常输入
             element.input(text, by_word=True, interval=random.uniform(0.1, 0.25))
@@ -106,7 +106,7 @@ class AntiSybilDpUtil:
             pass
 
     @staticmethod
-    def patch_webdriver_fingerprint(page: ChromiumPage, user_id: str = None):
+    def patch_webdriver_fingerprint(page: ChromiumPage):
         """
         通过执行CDP命令，在页面加载前注入JS脚本，以修复和隐藏WebDriver的各种特征。
         """

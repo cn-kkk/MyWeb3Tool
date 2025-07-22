@@ -46,9 +46,9 @@ class PharosScript:
 
         # 步骤3: 人性化等待和交互
         LogUtil.info(self.user_id, "步骤3: 等待页面加载并模拟交互...")
-        AntiSybilDpUtil.human_long_wait(self.user_id)
-        AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
-        AntiSybilDpUtil.human_short_wait(self.user_id)
+        AntiSybilDpUtil.human_long_wait()
+        AntiSybilDpUtil.simulate_random_click(self.page)
+        AntiSybilDpUtil.human_short_wait()
 
         # 步骤4: 解锁钱包
         LogUtil.info(self.user_id, "步骤4: 开始解锁钱包...")
@@ -83,7 +83,7 @@ class PharosScript:
 
                 # 等待后端处理，然后刷新页面
                 LogUtil.info(self.user_id, "等待2秒后刷新页面以确认状态...")
-                AntiSybilDpUtil.human_short_wait(self.user_id)
+                AntiSybilDpUtil.human_short_wait()
                 self.page.refresh()
                 self.page.wait.load_start()
                 LogUtil.info(self.user_id, "页面已刷新。")
@@ -146,9 +146,9 @@ class PharosScript:
             if swap_btn:
                 # 反女巫：点击前模拟随机操作
                 LogUtil.info(self.user_id, "模拟随机点击...")
-                AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
+                AntiSybilDpUtil.simulate_random_click(self.page)
                 LogUtil.info(self.user_id, "模拟短时间等待...")
-                AntiSybilDpUtil.human_short_wait(self.user_id)
+                AntiSybilDpUtil.human_short_wait()
 
                 # 点击Swap按钮
                 swap_btn.click()
@@ -156,7 +156,7 @@ class PharosScript:
 
                 # 等待页面加载
                 LogUtil.info(self.user_id, "模拟长时间等待...")
-                AntiSybilDpUtil.human_long_wait(self.user_id)
+                AntiSybilDpUtil.human_long_wait()
 
                 # 检查是否成功跳转到Swap页面
                 if (
@@ -183,13 +183,9 @@ class PharosScript:
         LogUtil.info(self.user_id, "开始执行发送代币任务...")
         try:
             # 刷新页面并等待加载
-            LogUtil.info(self.user_id, "刷新页面并等待加载...")
+            LogUtil.info(self.user_id, "等待'Send'按钮出现...")
             self.page.refresh()
             self.page.wait.load_start()
-            LogUtil.info(self.user_id, "页面加载完成。")
-
-            # 确保页面元素加载完成，等待“Send”按钮出现
-            LogUtil.info(self.user_id, "等待'Send'按钮出现...")
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:
                 LogUtil.warn(self.user_id, "未找到'Send'按钮或按钮不可见。")
@@ -198,13 +194,12 @@ class PharosScript:
             # 1. 使用JS滚动到页面35%的位置
             js_code = "window.scrollTo(0, document.body.scrollHeight * 0.35);"
             self.page.run_js(js_code)
-            LogUtil.info(self.user_id, "已滚动到页面35%位置。")
-            AntiSybilDpUtil.human_short_wait(self.user_id)
+            AntiSybilDpUtil.human_short_wait()
 
             # 2. 点击Send按钮
             send_button.click()
             LogUtil.info(self.user_id, "已点击'Send'按钮。")
-            AntiSybilDpUtil.human_short_wait(self.user_id)
+            AntiSybilDpUtil.human_short_wait()
 
             # 3. 点击金额选项
             amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=15)
@@ -213,8 +208,7 @@ class PharosScript:
                 return False
 
             amount_option.click()
-            LogUtil.info(self.user_id, "已选择'0.001PHRS'金额。")
-            AntiSybilDpUtil.human_short_wait(self.user_id)
+            AntiSybilDpUtil.human_short_wait()
 
             # 4. 输入地址
             address_input = self.page.ele('xpath://input[@placeholder="Enter Address"]', timeout=10)
@@ -223,21 +217,19 @@ class PharosScript:
                 return False
 
             random_address = self.wallet_util.generate_random_evm_address()
-            LogUtil.info(self.user_id, f"生成的随机EVM地址: {random_address}")
 
             address_input.input(random_address)
-            LogUtil.info(self.user_id, "已将地址输入到输入框。")
-            AntiSybilDpUtil.human_short_wait(self.user_id)
+            AntiSybilDpUtil.human_short_wait()
 
             # 5. 点击最终的“Send PHRS”按钮
             final_send_button = self.page.ele('xpath://button[text()="Send PHRS"]', timeout=10)
             if not final_send_button or not final_send_button.states.is_displayed:
-                LogUtil.warn(self.user_id, "未找到最终的'Send PHRS'按钮。")
+                LogUtil.warn(self.user_id, "未找到'Send PHRS'按钮。")
                 return False
             
             final_send_button.click()
-            AntiSybilDpUtil.human_long_wait(self.user_id)
-            LogUtil.info(self.user_id, "已点击最终的'Send PHRS'按钮。")
+            AntiSybilDpUtil.human_long_wait()
+            LogUtil.info(self.user_id, "已点击'Send PHRS'按钮。")
 
             # 6. 处理钱包确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
@@ -245,7 +237,7 @@ class PharosScript:
                 return False
             
             LogUtil.info(self.user_id, "发送代币任务执行成功。")
-            AntiSybilDpUtil.human_long_wait(self.user_id)
+            AntiSybilDpUtil.human_long_wait()
             return True
 
         except Exception as e:

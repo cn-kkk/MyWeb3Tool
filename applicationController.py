@@ -71,7 +71,7 @@ class ApplicationController:
         self.projects = []  # 重置项目列表
         project_dir = os.path.join(os.getcwd(), "myProject")
         if not os.path.exists(project_dir):
-            LogUtil.warning(
+            LogUtil.warn(
                 "控制器",
                 f"项目目录 '{project_dir}' 不存在，将不会加载任何项目。"
             )
@@ -257,7 +257,7 @@ class ApplicationController:
             f"正在为项目 '{project_name}' 的所有浏览器分发任务 '{task_name}'。"
         )
         if not self.pages:
-            LogUtil.warning("控制器", "没有可用的浏览器实例来分发任务。")
+            LogUtil.warn("控制器", "没有可用的浏览器实例来分发任务。")
             return
 
         if not self.executor:
@@ -342,7 +342,7 @@ class ApplicationController:
             if len(lines) >= 1 and not lines[0].strip().startswith(
                 config.API_URL_VALID_PREFIXES
             ):
-                LogUtil.warning(
+                LogUtil.warn(
                     "控制器", "浏览器配置已保存，但API URL格式似乎不正确。"
                 )
             return True
