@@ -1,4 +1,6 @@
 import os
+import time
+
 from DrissionPage import ChromiumPage
 from util.okx_wallet_util import OKXWalletUtil
 from util.anti_sybil_dp_util import AntiSybilDpUtil
@@ -19,9 +21,6 @@ class PharosScript:
     def __init__(self, browser, user_id: str):
         """
         初始化脚本，完成一系列准备工作。
-
-        :param browser: 一个已经连接到浏览器的 DrissionPage.ChromiumBrowser 对象。
-        :param user_id: 当前操作的浏览器 user_id，用于日志记录。
         """
         self.browser = browser
         self.user_id = user_id
@@ -29,41 +28,72 @@ class PharosScript:
         self.wallet_util = WalletUtil()
 
         LogUtil.info(self.user_id, f"开始初始化项目: {self.project_name}")
-
-        # 步骤1: 查找或创建项目标签页
-        pharos_tab = None
         try:
-            pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
-        except Exception:
-            # 找不到标签页是正常情况，下面会处理
-            pass
+            # 步骤1: 解锁钱包 (直接调用，失败时它会自己抛异常)
+            self.okx_util.open_and_unlock_drission(self.browser, self.user_id)
 
-        if pharos_tab:
-            # 找到已打开的Pharos页面，切换并刷新
-            self.page = pharos_tab
-            self.page.refresh()
+            # 步骤2: 查找或创建项目标签页
+            try:
+                pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
+            except Exception:
+                pharos_tab = None
+
+            if pharos_tab:
+                self.page = pharos_tab
+                self.page.refresh()
+            else:
+                self.page = self.browser.new_tab(self.PHAROS_URL)
             self.page.wait.load_start()
-        else:
-            # 未找到Pharos页面，新建标签页打开
-            self.page = self.browser.new_tab(self.PHAROS_URL)
 
-        # 步骤2: 最大化窗口
-        self.page.set.window.max()
+            # 步骤3: 最大化窗口
+            self.page.set.window.max()
 
-        # 步骤3: 人性化等待和交互，并注入反指纹脚本
-        AntiSybilDpUtil.human_long_wait()
-        AntiSybilDpUtil.simulate_random_click(self.page)
-        AntiSybilDpUtil.human_short_wait()
-        AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
+            # 步骤4: 人性化等待和交互
+            AntiSybilDpUtil.human_long_wait()
+            AntiSybilDpUtil.simulate_random_click(self.page)
+            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
 
-        # 步骤4: 解锁钱包
-        LogUtil.info(self.user_id, "正在解锁钱包...")
-        if not self.okx_util.open_and_unlock_drission(self.browser, self.user_id):
-            error_msg = "解锁钱包失败，初始化终止。"
-            LogUtil.error(self.user_id, error_msg)
-            raise RuntimeError(error_msg)
+            # 步骤5: 连接钱包
+            js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
+            if self.page.run_js(js_find_button):
+                self.page.ele('xpath://button[normalize-space()="Connect Wallet"]').click()
+                AntiSybilDpUtil.human_long_wait()
 
-        LogUtil.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
+                def _select_okx_wallet():
+                    """内部函数，用于处理复杂的钱包选择器逻辑，失败时会自己抛出异常。"""
+                    js_find_and_click = '''
+                    function findWalletAndClick(rootElement, walletName) {
+                        let foundNode = null;
+                        function traverse(node) {
+                            if (!node || foundNode) return;
+                            if (node.shadowRoot) { traverse(node.shadowRoot); }
+                            if (!foundNode && node.childNodes) { node.childNodes.forEach(traverse); }
+                            if (!foundNode && node.innerText && node.innerText.includes(walletName) && (node.tagName === 'BUTTON' || node.tagName === 'DIV' || node.onclick)) {
+                                foundNode = node;
+                                return;
+                            }
+                        }
+                        traverse(rootElement.shadowRoot ? rootElement.shadowRoot : rootElement);
+                        if (foundNode) { foundNode.click(); return true; }
+                        return false;
+                    }
+                    return findWalletAndClick(arguments[0], arguments[1]);
+                    '''
+                    possible_hosts = self.page.eles("xpath://*[contains(local-name(), 'modal')]")
+                    for host in possible_hosts:
+                        if host.states.is_displayed and self.page.run_js(js_find_and_click, host, "OKX Wallet"):
+                            return
+                    raise Exception("遍历所有弹窗未能找到并点击OKX Wallet。")
+
+                _select_okx_wallet()
+                self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+
+            LogUtil.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
+
+        except Exception as e:
+            LogUtil.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
+            raise
 
     def task_check_in(self):
         """
@@ -114,7 +144,7 @@ class PharosScript:
 
     def task_swap(self):
         """
-        重构后的Swap任务：打开新页面，连接钱包。
+        重构后的Swap任务：打开新页面，连接钱包，为后续的兑换操作做准备。
         """
         LogUtil.info(self.user_id, "开始执行Swap任务...")
         swap_page = None
@@ -128,33 +158,84 @@ class PharosScript:
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
 
-            # 步骤3: 查找并点击 'Connect' 按钮
-            connect_btn = swap_page.ele( # type: ignore
-                'xpath://button[@data-testid="navbar-connect-wallet" and contains(text(), "Connect")]',
-                timeout=20
-            )
-
-            if connect_btn and connect_btn.states.is_displayed:
-                connect_btn.click()
-                AntiSybilDpUtil.human_short_wait()
-
-                # 步骤4: 调用OKX钱包工具类完成完整的连接流程
-                if not self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id):
-                    LogUtil.error(self.user_id, "Swap任务失败：执行OKX钱包连接流程失败。")
+            # 步骤3: 检查是否钱包连接
+            connected_button = swap_page.ele('xpath://button[@data-testid="web3-status-connected"]', timeout=5) # type: ignore
+            if not (connected_button and connected_button.states.is_displayed):
+                # 如果未连接，则执行手动连接流程
+                connect_btn = swap_page.ele( # type: ignore
+                    'xpath://button[@data-testid="navbar-connect-wallet"]',
+                    timeout=15
+                )
+                if connect_btn and connect_btn.states.is_displayed:
+                    connect_btn.click()
+                    AntiSybilDpUtil.human_short_wait()
+                    if not self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id):
+                        LogUtil.error(self.user_id, "Swap任务失败：执行OKX钱包连接流程失败。")
+                        return False
+                else:
+                    # 两种按钮都找不到，则任务失败
+                    LogUtil.error(self.user_id, "Swap任务失败：既未找到已连接的钱包按钮，也未找到'Connect'按钮。")
                     return False
+            
+            # 钱包连接已确认，继续执行核心业务
+            
+            # 步骤4: 等待代币数量加载
+            swap_page.wait.load_start()
+            AntiSybilDpUtil.human_short_wait()
 
-                LogUtil.info(self.user_id, "—————— Swap任务已成功完成 ——————")
-                return True
-            else:
-                LogUtil.error(self.user_id, "Swap任务失败：未找到'Connect'按钮。")
+            # 步骤5: 点击“Select token”按钮 (B Token)
+            select_token_btn = swap_page.ele(
+                'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]'
+            ) # type: ignore
+            if not (select_token_btn and select_token_btn.states.is_displayed):
+                LogUtil.error(self.user_id, "Swap任务失败：未找到'Select token'按钮。")
                 return False
+            select_token_btn.click()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤6: 在弹窗中选择USDC
+            usdc_option = swap_page.ele('xpath://div[@data-testid="common-base-USDC"]') # type: ignore
+            if not (usdc_option and usdc_option.states.is_displayed):
+                LogUtil.error(self.user_id, "Swap任务失败：未找到'USDC'选项。")
+                return False
+            usdc_option.click()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤7: 在PHRS输入框中输入金额
+            amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
+            if not amount_input:
+                LogUtil.error(self.user_id, "Swap任务失败：未找到金额输入框。")
+                return False
+            # 采用“点击->清空->输入”的终极策略来处理顽固输入框
+            amount_input.click()
+            AntiSybilDpUtil.human_short_wait()
+            amount_input.clear()
+            amount_input.input("0.02")
+
+            # 步骤8: 等待兑换率计算完成
+            swap_page.wait.load_start()
+            AntiSybilDpUtil.human_long_wait() # 使用长等待，给网页足够的时间返回汇率
+
+            # 步骤9: 点击Swap按钮
+            final_swap_btn = swap_page.ele('#swap-button') # type: ignore
+            if not (final_swap_btn and final_swap_btn.states.is_clickable):
+                LogUtil.error(self.user_id, "Swap任务失败：Swap按钮未出现或不可点击。")
+                return False
+            final_swap_btn.click()
+            AntiSybilDpUtil.human_long_wait()
+
+            # 步骤10: okx钱包弹窗中点击确认
+
+            # 步骤11: 报告当前阶段成功
+            LogUtil.info(self.user_id, "—————— Swap任务已成功完成 ——————")
+            return True
 
         except Exception as e:
             LogUtil.error(self.user_id, f"Swap任务执行时发生意外错误: {e}")
             return False
         finally:
-            # 任务结束后可以考虑是否关闭swap_page
-            if swap_page:
+            # 任务结束后关闭页面
+            if swap_page and swap_page.tab_id in self.browser.tab_ids:
                 swap_page.close()
 
     def task_send_tokens(self):

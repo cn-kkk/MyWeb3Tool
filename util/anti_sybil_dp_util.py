@@ -4,9 +4,11 @@ import random
 # DrissionPage是可选依赖，只有在使用时才需要
 try:
     from DrissionPage import ChromiumPage, ChromiumElement
+    from .log_util import LogUtil
 except ImportError:
     ChromiumPage = None
     ChromiumElement = None
+    LogUtil = None
 
 
 class AntiSybilDpUtil:
@@ -43,9 +45,8 @@ class AntiSybilDpUtil:
             page.scroll.down(scroll_distance)
             AntiSybilDpUtil.human_short_wait()
             page.scroll.to_top()
-        except Exception:
-            # 作为非关键操作，静默失败
-            pass
+        except Exception as e:
+            LogUtil.error("anti_sybil", f"simulate_scroll时发生意外错误: {e}")
 
     @staticmethod
     def simulate_mouse_move(page: ChromiumPage):
@@ -62,9 +63,8 @@ class AntiSybilDpUtil:
                     (x, y), duration=random.uniform(0.3, 0.8)
                 ).perform()
                 time.sleep(random.uniform(0.2, 0.5))
-        except Exception:
-            # 静默失败
-            pass
+        except Exception as e:
+            LogUtil.error("anti_sybil", f"simulate_mouse_move时发生意外错误: {e}")
 
     @staticmethod
     def simulate_random_click(page: ChromiumPage):
@@ -80,9 +80,8 @@ class AntiSybilDpUtil:
             page.actions.move_to(
                 (x, y), duration=random.uniform(0.2, 0.6)
             ).click().perform()
-        except Exception:
-            # 静默失败
-            pass
+        except Exception as e:
+            LogUtil.error("anti_sybil", f"simulate_random_click时发生意外错误: {e}")
 
     @staticmethod
     def simulate_typing(element: ChromiumElement, text: str):
@@ -101,9 +100,8 @@ class AntiSybilDpUtil:
 
             # 正常输入
             element.input(text, by_word=True, interval=random.uniform(0.1, 0.25))
-        except Exception:
-            # 模拟输入错误时静默失败
-            pass
+        except Exception as e:
+            LogUtil.error("anti_sybil", f"simulate_typing时发生意外错误: {e}")
 
     @staticmethod
     def patch_webdriver_fingerprint(page: ChromiumPage):
@@ -155,9 +153,8 @@ class AntiSybilDpUtil:
             })();
             """
             page.run_cdp("Page.addScriptToEvaluateOnNewDocument", source=js_script)
-        except Exception:
-            # 修补指纹失败时静默失败
-            pass
+        except Exception as e:
+            LogUtil.error("anti_sybil", f"patch_webdriver_fingerprint时发生意外错误: {e}")
 
 
 if __name__ == "__main__":
