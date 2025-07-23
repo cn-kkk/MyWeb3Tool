@@ -58,7 +58,7 @@ class PharosScript:
             js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
             if self.page.run_js(js_find_button):
                 self.page.ele('xpath://button[normalize-space()="Connect Wallet"]').click()
-                AntiSybilDpUtil.human_long_wait()
+                AntiSybilDpUtil.human_short_wait()
 
                 def _select_okx_wallet():
                     """内部函数，用于处理复杂的钱包选择器逻辑，失败时会自己抛出异常。"""
@@ -86,11 +86,23 @@ class PharosScript:
                             return
                     raise Exception("遍历所有弹窗未能找到并点击OKX Wallet。")
 
+                # 调用内部函数选择OKX钱包
                 _select_okx_wallet()
+                AntiSybilDpUtil.human_short_wait()
+                # 处理可选的"Continue"按钮，完全采纳用户提供的、最直接有效的JS方案
+                js_click_continue = """
+                const btn = document.querySelector('button.sc-fifgeu.donsIG');
+                if (btn && btn.textContent.trim() === 'Continue') {
+                  btn.click();
+                }
+                """
+                self.page.run_js(js_click_continue)
+                AntiSybilDpUtil.human_long_wait()
+
                 self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 
             LogUtil.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
-
+            AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
         except Exception as e:
             LogUtil.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
             raise

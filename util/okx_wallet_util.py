@@ -46,7 +46,8 @@ class OKXWalletUtil:
             wallet_page.wait.load_start()
 
             if self.EXTENSION_ID not in wallet_page.url:
-                raise Exception(f"OKX钱包操作失败：打开的页面不是钱包扩展。URL: {wallet_page.url}")
+                LogUtil.warn("okx_wallet_util","未找到okx钱包页面。")
+                return
 
             # 循环处理，直到钱包页面关闭
             while wallet_page.tab_id in browser.tab_ids:
@@ -55,13 +56,13 @@ class OKXWalletUtil:
                 )
                 if action_button and action_button.states.is_clickable:
                     action_button.click()
-                    AntiSybilDpUtil.human_short_wait()
+                    AntiSybilDpUtil.human_long_wait()
                     continue
 
                 cancel_button = wallet_page.ele('text:取消', timeout=1)
                 if cancel_button and cancel_button.states.is_clickable:
                     cancel_button.click()
-                    raise Exception("用户在钱包中点击了取消。")
+                    raise Exception("钱包当前只能点击取消。")
                 
                 AntiSybilDpUtil.human_short_wait()
                 if wallet_page.tab_id not in browser.tab_ids:
