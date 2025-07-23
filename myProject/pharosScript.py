@@ -236,9 +236,18 @@ class PharosScript:
             final_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
-            # 步骤10: okx钱包弹窗中点击确认
+            # 步骤10: 在弹窗中点击 "Confirm Swap"
+            confirm_swap_btn = swap_page.ele('#confirm-swap-or-send', timeout=10)
+            if not confirm_swap_btn:
+                LogUtil.error(self.user_id, "Swap任务失败：未找到 'Confirm Swap' 按钮。")
+                return False
+            confirm_swap_btn.wait.clickable(timeout=10)
+            confirm_swap_btn.click()
+            AntiSybilDpUtil.human_long_wait()
 
-            # 步骤11: 报告当前阶段成功
+            # 步骤11: 处理最终的OKX钱包交易确认 (直接调用，失败时会抛出异常)
+            self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            AntiSybilDpUtil.human_short_wait()
             LogUtil.info(self.user_id, "—————— Swap任务已成功完成 ——————")
             return True
 
