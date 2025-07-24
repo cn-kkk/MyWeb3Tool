@@ -1,14 +1,8 @@
 import time
 import random
 
-# DrissionPage是可选依赖，只有在使用时才需要
-try:
-    from DrissionPage import ChromiumPage, ChromiumElement
-    from .log_util import LogUtil
-except ImportError:
-    ChromiumPage = None
-    ChromiumElement = None
-    LogUtil = None
+from DrissionPage import ChromiumPage
+from util.log_util import LogUtil
 
 
 class AntiSybilDpUtil:
@@ -38,8 +32,6 @@ class AntiSybilDpUtil:
         """
         在页面上模拟一次自然的向下滚动，然后滚动回顶部。
         """
-        if not ChromiumPage:
-            return
         try:
             scroll_distance = random.randint(300, 800)
             page.scroll.down(scroll_distance)
@@ -53,8 +45,6 @@ class AntiSybilDpUtil:
         """
         在页面内模拟几次无意义的鼠标移动。
         """
-        if not ChromiumPage:
-            return
         try:
             for _ in range(random.randint(2, 4)):
                 x = random.randint(100, page.size[0] - 100)
@@ -67,41 +57,56 @@ class AntiSybilDpUtil:
             LogUtil.error("anti_sybil", f"simulate_mouse_move时发生意外错误: {e}")
 
     @staticmethod
-    def simulate_random_click(page: ChromiumPage):
+    def simulate_random_click(page, user_id: str = "anti_sybil"):
         """
         在页面视口的左上角区域内模拟一次随机点击。
         """
-        if not ChromiumPage:
-            return
         try:
-            width, height = page.size
+            if not page:
+                LogUtil.warn(user_id, "simulate_random_click收到了一个空的page对象，已跳过。")
+                return
+
+            # 使用JS获取视口大小，这是最可靠的方法
+            width, height = page.run_js('return [window.innerWidth, window.innerHeight];')
             x = random.randint(0, int(width * 0.15))
             y = random.randint(int(height * 0.1), int(height * 0.2))
+            LogUtil.info(user_id, f"simulate_random_click: x坐标{x}, y坐标{y}")
             page.actions.move_to(
                 (x, y), duration=random.uniform(0.2, 0.6)
-            ).click().perform()
+            ).click()
         except Exception as e:
-            LogUtil.error("anti_sybil", f"simulate_random_click时发生意外错误: {e}")
+            LogUtil.error(user_id, f"simulate_random_click时发生意外错误: {e}")
 
     @staticmethod
-    def simulate_typing(element: ChromiumElement, text: str):
+    def simulate_typing(page: ChromiumPage, text: str, user_id: str = "anti_sybil"):
         """
-        模拟真人输入：使用DrissionPage的by_word模式，并增加随机停顿。
+        模拟真人输入：在当前光标位置逐字输入，并增加随机停顿。
+        有小概率会先输入一遍，然后删除，再重新输入，以模拟更真实的用户行为。
         """
-        if not ChromiumElement:
-            return
         try:
-            # 10%的概率完全重打一遍
+            def _type_text_by_char(p, t):
+                """辅助函数，用于执行逐字输入。"""
+                for char in t:
+                    p.actions.key_down(char).key_up(char)
+                    time.sleep(random.uniform(0.08, 0.25))
+
+            # 10%的概率触发“输入-删除-重输”的反女巫逻辑
             if random.random() < 0.1:
-                element.input(text, by_word=True, interval=random.uniform(0.08, 0.2))
-                AntiSybilDpUtil.human_short_wait()
-                element.clear()
+                # 第一次输入
+                _type_text_by_char(page, text)
                 AntiSybilDpUtil.human_short_wait()
 
-            # 正常输入
-            element.input(text, by_word=True, interval=random.uniform(0.1, 0.25))
+                # 模拟退格键删除
+                for _ in range(len(text) + 2):  # 多删几个以防万一
+                    page.actions.key_down('backspace').key_up('backspace')
+                    time.sleep(random.uniform(0.02, 0.05))
+                AntiSybilDpUtil.human_short_wait()
+
+            # 最终的、正确的输入 (无论是否触发了反女巫，都会执行这一步)
+            _type_text_by_char(page, text)
+
         except Exception as e:
-            LogUtil.error("anti_sybil", f"simulate_typing时发生意外错误: {e}")
+            LogUtil.error(user_id, f"simulate_typing时发生意外错误: {e}")
 
     @staticmethod
     def patch_webdriver_fingerprint(page: ChromiumPage):
