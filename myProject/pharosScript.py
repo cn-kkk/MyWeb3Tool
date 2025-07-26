@@ -225,11 +225,11 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
-            final_swap_btn = swap_page.ele('#swap-button') # type: ignore
-            if not (final_swap_btn and final_swap_btn.states.is_clickable):
+            swap_btn = swap_page.ele('#swap-button') # type: ignore
+            if not (swap_btn and swap_btn.states.is_clickable):
                 LogUtil.error(self.user_id, "Swap任务失败：Swap按钮未出现或不可点击。")
                 return False
-            final_swap_btn.click()
+            swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10: 在弹窗中点击 "Confirm Swap"
@@ -242,7 +242,9 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤11: 处理OKX钱包交易确认
-            self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
+                LogUtil.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
+                return False
             AntiSybilDpUtil.human_huge_wait()
 
             # 步骤12: 等待网页执行swap，然后通过点击空白处关闭swap成功的弹窗
@@ -268,14 +270,17 @@ class PharosScript:
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_long_wait()
 
-            final_swap_btn.click()
+            swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
-            confirm_swap_btn.wait.clickable(timeout=10)
-            confirm_swap_btn.click()
+            new_confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
+            new_confirm_swap_btn.wait.clickable(timeout=10)
+            new_confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
-            self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
+                LogUtil.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
+                return False
             AntiSybilDpUtil.human_huge_wait()
 
             LogUtil.info(self.user_id, "—————— Swap任务已成功完成 ——————")
