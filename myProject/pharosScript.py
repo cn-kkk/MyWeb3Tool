@@ -1,6 +1,3 @@
-import os
-import time
-
 from DrissionPage import ChromiumPage
 from util.okx_wallet_util import OKXWalletUtil
 from util.anti_sybil_dp_util import AntiSybilDpUtil
@@ -50,8 +47,8 @@ class PharosScript:
 
             # 步骤4: 人性化等待和交互
             AntiSybilDpUtil.human_long_wait()
-            AntiSybilDpUtil.simulate_random_click(self.page)
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
+            AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
 
             # 步骤5: 连接钱包
@@ -188,9 +185,7 @@ class PharosScript:
                     # 两种按钮都找不到，则任务失败
                     LogUtil.error(self.user_id, "Swap任务失败：既未找到已连接的钱包按钮，也未找到'Connect'按钮。")
                     return False
-            
-            # 钱包连接已确认，继续执行核心业务
-            
+
             # 步骤4: 等待代币数量加载
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
@@ -220,9 +215,10 @@ class PharosScript:
                 return False
             # 采用“点击->清空->输入”的终极策略来处理顽固输入框
             amount_input.click()
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.human_brief_wait()
             amount_input.clear()
-            amount_input.input("0.02")
+            AntiSybilDpUtil.human_brief_wait()
+            amount_input.input("0.005")
 
             # 步骤8: 等待兑换率计算完成
             swap_page.wait.load_start()
@@ -237,7 +233,7 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10: 在弹窗中点击 "Confirm Swap"
-            confirm_swap_btn = swap_page.ele('#confirm-swap-or-send', timeout=10)
+            confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
             if not confirm_swap_btn:
                 LogUtil.error(self.user_id, "Swap任务失败：未找到 'Confirm Swap' 按钮。")
                 return False
@@ -245,9 +241,43 @@ class PharosScript:
             confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
-            # 步骤11: 处理最终的OKX钱包交易确认 (直接调用，失败时会抛出异常)
+            # 步骤11: 处理OKX钱包交易确认
             self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            AntiSybilDpUtil.human_huge_wait()
+
+            # 步骤12: 等待网页执行swap，然后通过点击空白处关闭swap成功的弹窗
+            AntiSybilDpUtil.simulate_random_click(swap_page, self.user_id)
             AntiSybilDpUtil.human_short_wait()
+            self.page.wait.load_start()
+
+            # 步骤13: 点击对调按钮，然后将usdc换回PHRS，再次执行步骤7后面逻辑
+            swap_currency_button = swap_page.ele('xpath://div[@data-testid="swap-currency-button"]')
+            swap_currency_button.click()  # 点击按钮
+            AntiSybilDpUtil.human_short_wait()
+
+            max_btn = swap_page.wait.ele_displayed('@name=Swap Max Token Amount Selected', timeout=10)
+            if max_btn:
+                max_btn.click()
+            else:
+                amount_input.click()
+                AntiSybilDpUtil.human_brief_wait()
+                amount_input.clear()
+                AntiSybilDpUtil.human_brief_wait()
+                amount_input.input("10")
+
+            swap_page.wait.load_start()
+            AntiSybilDpUtil.human_long_wait()
+
+            final_swap_btn.click()
+            AntiSybilDpUtil.human_long_wait()
+
+            confirm_swap_btn.wait.clickable(timeout=10)
+            confirm_swap_btn.click()
+            AntiSybilDpUtil.human_long_wait()
+
+            self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            AntiSybilDpUtil.human_huge_wait()
+
             LogUtil.info(self.user_id, "—————— Swap任务已成功完成 ——————")
             return True
 

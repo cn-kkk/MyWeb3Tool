@@ -38,7 +38,7 @@ class OKXWalletUtil:
     def confirm_transaction_drission(self, browser, user_id: str):
         """
         等待并处理OKX钱包的通用弹窗（如交易确认、连接请求等）。
-        失败时直接抛出异常。
+        点了‘取消’直接抛出异常，未找到okx页面返回false。
         """
         wallet_page = None
         try:
@@ -47,7 +47,7 @@ class OKXWalletUtil:
 
             if self.EXTENSION_ID not in wallet_page.url:
                 LogUtil.warn("okx_wallet_util","未找到okx钱包页面。")
-                return
+                return False
 
             # 循环处理，直到钱包页面关闭
             while wallet_page.tab_id in browser.tab_ids:
@@ -67,6 +67,8 @@ class OKXWalletUtil:
                 AntiSybilDpUtil.human_short_wait()
                 if wallet_page.tab_id not in browser.tab_ids:
                     break
+            
+            return True
 
         except Exception as e:
             # 没有is_alive方法

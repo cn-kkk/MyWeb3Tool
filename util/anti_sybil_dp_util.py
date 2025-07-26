@@ -12,19 +12,35 @@ class AntiSybilDpUtil:
     """
 
     @staticmethod
+    def human_brief_wait():
+        """
+        1s内等待
+        """
+        delay = random.uniform(0.5, 1)
+        time.sleep(delay)
+
+    @staticmethod
     def human_short_wait():
         """
         人性化的短等待，模拟思考或网络延迟。
         """
-        delay = random.uniform(1.5, 3.5)
+        delay = random.uniform(2, 4)
         time.sleep(delay)
 
     @staticmethod
     def human_long_wait():
         """
-        人性化的长等待，用于等待页面加载或复杂操作。
+        人性化的长等待，用于等待页面加载。
         """
-        delay = random.uniform(7.0, 12.0)
+        delay = random.uniform(8.0, 12.0)
+        time.sleep(delay)
+
+    @staticmethod
+    def human_huge_wait():
+        """
+        超长等待，一般用于比较卡的项目交互。
+        """
+        delay = random.uniform(13.0, 20.0)
         time.sleep(delay)
 
     @staticmethod
