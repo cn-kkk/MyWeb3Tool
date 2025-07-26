@@ -104,7 +104,7 @@ class PharosScript:
             LogUtil.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
             raise
 
-    def task_check_in(self):
+    def pharos_task_check_in(self):
         """
         Pharos网页签到任务：自动查找并点击Check in按钮，然后刷新页面并验证状态。
         基于DrissionPage技术栈实现
@@ -151,7 +151,7 @@ class PharosScript:
             LogUtil.error(self.user_id, f"签到任务执行期间发生意外错误: {e}")
             return False
 
-    def task_swap(self):
+    def pharos_task_swap(self):
         """
         重构后的Swap任务：打开新页面，连接钱包，为后续的兑换操作做准备。
         """
@@ -294,7 +294,7 @@ class PharosScript:
             if swap_page and swap_page.tab_id in self.browser.tab_ids:
                 swap_page.close()
 
-    def task_send_tokens(self):
+    def pharos_task_send_tokens(self):
         """
         执行发送代币任务：滚动页面，点击发送，选择金额，输入随机地址，确认发送。
         """
@@ -351,20 +351,6 @@ class PharosScript:
         except Exception as e:
             LogUtil.error(self.user_id, f"发送代币任务执行时发生意外错误: {e}")
             return False
-
-    def run(self):
-        """
-        运行所有任务的主方法
-        """
-        LogUtil.info(self.user_id, f"开始执行 {self.project_name} 的所有任务...")
-
-        # 执行签到任务
-        self.task_check_in()
-
-        # 可以在这里添加更多任务
-        # self.task_swap()
-
-        LogUtil.info(self.user_id, f"项目 {self.project_name} 的所有任务已执行完毕。")
 
 
 if __name__ == "__main__":

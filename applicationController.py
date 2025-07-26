@@ -4,6 +4,7 @@ import inspect
 import pyautogui
 import time
 import ctypes
+import threading
 from concurrent.futures import ThreadPoolExecutor, wait
 from util.log_util import LogUtil
 import config
@@ -55,6 +56,7 @@ class ApplicationController:
         self.projects = []  # 存储所有发现的项目脚本
         self.max_workers = 4
         self.executor = None
+        self.interrupt_event = threading.Event()  # 中断信号
         self.screen_width, self.screen_height = pyautogui.size()
         self.scale_factor = get_windows_dpi_scaling()
         LogUtil.info(
@@ -207,15 +209,15 @@ class ApplicationController:
 
         LogUtil.info("控制器", "核心应用后端初始化完成。")
 
-    def _task_worker(
-        self, page_env: DrissionPageEnv, project_name: str, task_name: str
+    def _browser_worker(
+        self, page_env: DrissionPageEnv, project_name: str, tasks: list[dict]
     ):
         """
-        在线程池中执行单个任务的工人函数。
+        在单个浏览器环境中，按顺序执行一系列任务的工人函数。
         """
         LogUtil.info(
             page_env.user_id,
-            f"[线程-{page_env.user_id}] 开始为项目 '{project_name}' 执行任务 '{task_name}'。"
+            f"[线程-{page_env.user_id}] 开始处理任务序列。"
         )
         try:
             project_info = next(
@@ -230,34 +232,71 @@ class ApplicationController:
             project_class = project_info["class"]
             script_instance = project_class(browser=page_env.browser, user_id=page_env.user_id)
 
-            task_method = getattr(script_instance, task_name, None)
-            if task_method and callable(task_method):
-                task_method()
-                LogUtil.info(
-                    page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' 成功完成。"
-                )
-            else:
-                LogUtil.error(
-                    page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name}' 中未找到任务方法 '{task_name}'。"
-                )
+            # 外层循环，遍历任务定义
+            for task_definition in tasks:
+                if self.interrupt_event.is_set():
+                    LogUtil.warn(
+                        page_env.user_id,
+                        f"[线程-{page_env.user_id}] 检测到中断信号，任务序列已中止。"
+                    )
+                    break
+
+                task_name = task_definition.get("name")
+                repetitions = task_definition.get("repetitions", 1)
+
+                if not task_name:
+                    LogUtil.error(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'name' 键: {task_definition}")
+                    continue
+
+                task_method = getattr(script_instance, task_name, None)
+                if not (task_method and callable(task_method)):
+                    LogUtil.error(
+                        page_env.user_id,
+                        f"[线程-{page_env.user_id}] 在 '{project_name}' 中未找到或无效的任务方法 '{task_name}'。"
+                    )
+                    continue # 跳过无效任务，继续下一个
+
+                # 内层循环，根据 repetitions 执行
+                for i in range(repetitions):
+                    if self.interrupt_event.is_set():
+                        LogUtil.warn(
+                            page_env.user_id,
+                            f"[线程-{page_env.user_id}] 检测到中断信号，任务 '{task_name}' 的剩余执行已取消。"
+                        )
+                        break # 中断内层循环
+                    
+                    LogUtil.info(
+                        page_env.user_id, f"[线程-{page_env.user_id}] 开始执行任务 '{task_name}' (第 {i+1}/{repetitions} 次)..."
+                    )
+                    task_method()
+                    LogUtil.info(
+                        page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' (第 {i+1}/{repetitions} 次) 成功完成。"
+                    )
+            
+            if not self.interrupt_event.is_set():
+                LogUtil.info(page_env.user_id, f"[线程-{page_env.user_id}] 所有任务已成功完成。")
 
         except Exception as e:
             LogUtil.error(
                 page_env.user_id,
-                f"[线程-{page_env.user_id}] 执行任务 '{task_name}' 期间发生错误: {e}",
+                f"[线程-{page_env.user_id}] 执行任务序列期间发生严重错误: {e}",
                 exc_info=True,
             )
 
-    def dispatch_task(self, project_name: str, task_name: str):
+    def dispatch_tasks(self, project_name: str, tasks: list[dict]):
         """
-        将单个任务分配给所有可用的浏览器实例，采用分批处理模式。
+        将一个任务序列分配给所有可用的浏览器实例，采用分批处理模式。
         """
         LogUtil.info(
             "控制器",
-            f"正在为项目 '{project_name}' 的所有浏览器分发任务 '{task_name}'。"
+            f"正在为项目 '{project_name}' 的所有浏览器分发任务序列: {tasks}。"
         )
         if not self.pages:
             LogUtil.warn("控制器", "没有可用的浏览器实例来分发任务。")
+            return
+        
+        if not tasks:
+            LogUtil.warn("控制器", "任务列表为空，无需分发。")
             return
 
         if not self.executor:
@@ -265,6 +304,8 @@ class ApplicationController:
                 "控制器", "线程池未初始化，无法分发任务。"
             )
             return
+            
+        self.interrupt_event.clear() # 重置中断信号，确保新任务可以开始
 
         # 将所有页面分块，每块的大小为最大工作线程数
         page_chunks = [
@@ -281,10 +322,10 @@ class ApplicationController:
             # 1. 对当前批次的浏览器进行窗口布局
             self.arrange_windows_as_grid(chunk)
 
-            # 2. 将当前批次的所有任务提交给线程池
+            # 2. 将当前批次的任务提交给线程池 (每个浏览器一个worker)
             futures = [
                 self.executor.submit(
-                    self._task_worker, page_env, project_name, task_name
+                    self._browser_worker, page_env, project_name, tasks
                 )
                 for page_env in chunk
             ]
@@ -294,7 +335,14 @@ class ApplicationController:
 
             LogUtil.info("控制器", f"批次 {i+1}/{len(page_chunks)} 已完成。")
 
-        LogUtil.info("控制器", f"项目 '{project_name}' 的任务 '{task_name}' 的所有批次已处理完毕。")
+        LogUtil.info("控制器", f"项目 '{project_name}' 的任务序列 {tasks} 的所有批次已处理完毕。")
+
+    def interrupt_tasks(self):
+        """
+        设置中断信号，通知所有正在运行的worker线程在完成当前任务后停止。
+        """
+        LogUtil.info("控制器", "接收到中断信号，将通知所有线程停止后续任务...")
+        self.interrupt_event.set()
 
     def shutdown(self):
         """
