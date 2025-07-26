@@ -1,84 +1,65 @@
-# S1mpleWeb3Tool
+# MyWeb3Tool
 
-一个功能丰富的Web3工具集，提供多种区块链操作功能。
+本软件是一个基于 **AdsPower** 和 **DrissionPage** 框架的Web3自动化工具。
 
-## 功能特性
+## 前提条件
 
-- 🔧 **配置管理** - IP配置和钱包配置
-- 🔄 **Somnia** - Swap、Mint、转账功能
-- 🌐 **Pharos** - Swap、Deposit、转账、域名功能
-- 📝 **日志记录** - 详细的操作日志记录
+在使用本软件前，请确保满足以下条件：
 
-## 安装和运行
+1.  **启用AdsPower API**：您必须拥有AdsPower账号，并已开通API功能。
+2.  **安装OKX钱包**：在所有需要运行脚本的AdsPower浏览器环境中，必须预先安装好OKX钱包插件。
+3.  **统一钱包密码**：所有浏览器环境中的OKX钱包必须设置成同一个密码。
 
-### 方法一：直接运行Python脚本
+## 主要功能
 
-1. 安装依赖：
-```bash
-pip install -r requirements.txt
-```
+傻瓜式运行我写好的项目脚本
 
-2. 运行应用程序：
-```bash
-python myToolApplication.py
-```
+### 1. 配置管理
 
-### 方法二：打包成exe文件
+通过UI界面可以管理以下配置文件：
 
-1. 运行打包脚本：
-```bash
-python build_exe.py
-```
+*   **浏览器配置** (`resource/browser.txt`):
+    *   **第一行**: 您的AdsPower本地API地址 (例如 `http://127.0.0.1:50325`)。
+    *   **后续每行**: 一个您要操作的AdsPower浏览器环境的用户ID (user_id)。
 
-2. 运行生成的exe文件：
-```bash
-S1mpleWeb3Tool.exe
-```
+*   **OKX钱包密码** (`resource/okxPassword.txt`):
+    *   在此文件中配置您的OKX钱包密码。
+    *   此密码必须与您所有浏览器环境中OKX钱包的密码一致。
+    
+*   **SOCKS5 IP配置** (`resource/socks5.txt`):
+    *   **当前状态**: 暂未使用。
+    *   **未来规划**: 用于动态添加新的AdsPower环境，并使钱包相关的网络请求通过指定的代理IP进行。
 
-## 项目结构
+*   **钱包配置** (`resource/wallets.txt`):
+    *   **当前状态**: 暂未使用。
+    *   **未来规划**: 用于执行链上钱包操作，如转账、合约交互等。
 
-```
-S1mpleWeb3Tool/
-├── myToolApplication.py    # 主应用程序
-├── build_exe.py           # 打包脚本
-├── requirements.txt       # 依赖列表
-├── util/                  # 工具模块
-├── resource/              # 资源文件
-└── logs/                  # 日志文件（自动生成）
-```
+### 2. 项目脚本
 
-## 界面说明
+*   您可以运行 `myProject/` 目录下的特定项目脚本。
+*   支持为每个任务自定义执行次数。
 
-### 首页
-- 欢迎界面，显示应用程序功能概览
+### 3. 钱包功能 (规划中)
 
-### 配置
-- **IP配置** - 管理代理IP设置
-- **钱包配置** - 管理钱包相关配置
+未来将集成更强大的链上钱包交互功能。
 
-### Somnia
-- **Swap** - 代币交换功能
-- **Mint** - NFT铸造功能
-- **转账** - 代币转账功能
+## 如何使用
 
-### Pharos
-- **Swap** - 代币交换功能
-- **Deposit** - 存款功能
-- **转账** - 代币转账功能
-- **域名** - 域名管理功能
+### 对于开发者
 
-## 日志系统
+1.  克隆本仓库。
+2.  安装所需的Python依赖：
+    ```shell
+    pip install -r requirements.txt
+    ```
+3.  运行主程序启动UI界面：
+    ```shell
+    python myToolApplication.py
+    ```
 
-应用程序会自动记录所有操作日志，日志文件保存在 `logs/` 目录下，文件名格式为 `myTool_YYYYMMDD_HHMMSS.log`。
+### 对于普通用户
 
-## 开发说明
+您可以直接从本项目的 `GitHub Releases` 页面下载已打包好的 `.exe` 可执行文件，无需安装Python环境即可运行。
 
-- 使用 PyQt5 构建图形界面
-- 支持 Windows 平台
-- 可打包成独立的 exe 文件
-
-## 注意事项
-
-- 首次运行时会自动创建日志目录
-- 确保有足够的磁盘空间用于日志文件
-- 建议在虚拟环境中运行以避免依赖冲突
+## PS
+软件根目录下会新建logs文件夹里面存放日志

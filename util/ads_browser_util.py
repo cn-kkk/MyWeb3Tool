@@ -96,7 +96,7 @@ class AdsBrowserUtil:
         for user_id in user_ids:
             try:
                 # 在每个API请求前加入一个安全的等待，以避免触发频率限制
-                time.sleep(1.1)
+                time.sleep(0.5)
 
                 full_api_url = (
                     f"{api_base.rstrip('/')}{active_endpoint}?user_id={user_id}"

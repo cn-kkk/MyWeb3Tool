@@ -96,7 +96,7 @@ class ApplicationController:
 
                                 tasks = []
                                 for attr in dir(obj):
-                                    if attr.startswith("task_"):
+                                    if attr.__contains__("task_"):
                                         method = getattr(obj, attr)
                                         if callable(method):
                                             tasks.append(

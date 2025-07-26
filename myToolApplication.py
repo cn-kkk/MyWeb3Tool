@@ -1,3 +1,4 @@
+import markdown
 import sys
 import os
 import time
@@ -360,9 +361,9 @@ class IPConfigWidget(QWidget):
                 background-color: #0078d4;
                 color: white;
                 border: none;
-                padding: 10px 20px;
+                padding: 15px 30px;
                 border-radius: 5px;
-                font-size: 14px;
+                font-size: 18px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -380,9 +381,9 @@ class IPConfigWidget(QWidget):
                 background-color: #107c10;
                 color: white;
                 border: none;
-                padding: 10px 20px;
+                padding: 15px 30px;
                 border-radius: 5px;
-                font-size: 14px;
+                font-size: 18px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -899,7 +900,7 @@ class BrowserConfigWidget(QWidget):
                 }
             ''')
             self.save_btn.setEnabled(False)
-            self.load_config()  # 重新加载，取消编���
+            self.load_config()  # 重新加载，取消编
             self.log_widget.append_log("取消浏览器ID配置编辑")
     
     def save_config(self):
@@ -987,39 +988,28 @@ class HomeTab(QWidget):
         super().__init__()
         self.log_widget = log_widget
         self.init_ui()
+        self.load_readme()
         
     def init_ui(self):
         layout = QVBoxLayout()
-        
-        # 欢迎标题
-        welcome_label = QLabel("欢迎使用 S1mpleWeb3Tool")
-        welcome_label.setFont(QFont('Microsoft YaHei', 24, QFont.Weight.Bold))
-        welcome_label.setStyleSheet("color: #0078d4; margin: 40px 0;")
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(welcome_label)
-        
-        # 功能说明
-        desc_label = QLabel("这是一个Web3工具集，提供多种区块链操作功能")
-        desc_label.setFont(QFont('Microsoft YaHei', 14))
-        desc_label.setStyleSheet("color: #666; margin: 20px 0;")
-        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(desc_label)
-        
-        # 功能列表
-        features = [
-            "🔧 配置管理 - IP配置和钱包配置",
-            "🔄 Somnia - Swap、Mint、转账功能",
-            "🌐 Pharos - Swap、Deposit、转账、域名功能"
-        ]
-        
-        for feature in features:
-            feature_label = QLabel(feature)
-            feature_label.setFont(QFont('Microsoft YaHei', 12))
-            feature_label.setStyleSheet("color: #333; margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px;")
-            layout.addWidget(feature_label)
-        
-        layout.addStretch()
+        self.readme_display = QTextEdit()
+        self.readme_display.setReadOnly(True)
+        layout.addWidget(self.readme_display)
         self.setLayout(layout)
+
+    def load_readme(self):
+        """加载并渲染README.md"""
+        try:
+            readme_path = resource_path('README.md')
+            with open(readme_path, 'r', encoding='utf-8') as f:
+                md_text = f.read()
+                
+            html = markdown.markdown(md_text, extensions=['fenced_code', 'tables'])
+            self.readme_display.setHtml(html)
+            self.log_widget.append_log("README.md 已加载到首页。")
+        except Exception as e:
+            self.log_widget.append_log(f"加载 README.md 失败: {e}")
+            self.readme_display.setText(f"加载 README.md 失败: {e}")
         
 
 
@@ -1160,11 +1150,11 @@ class ProjectTab(QWidget):
             task_label.setWordWrap(True)
             
             task_btn = QPushButton(f"运行")
-            task_btn.setFixedWidth(100)
+            task_btn.setFixedWidth(200)
             task_btn.setStyleSheet('''
                 QPushButton {
                     background-color: #107c10; color: white; font-weight: bold;
-                    font-size: 14px; padding: 8px; border-radius: 5px;
+                    font-size: 18px; padding: 12px; border-radius: 8px;
                 }
                 QPushButton:hover { background-color: #0e6e0e; }
             ''')
@@ -1320,15 +1310,14 @@ class MyToolApplication(QWidget):
     
     def closeEvent(self, event):
         # 3. 在关闭时调用后端的shutdown方法
-        self.log_widget.append_log("应用程序正在关闭，开始释放后端资源...")
+        log_util.info("UI", "应用程序正在关闭，开始释放后端资源...")
         self.controller.shutdown()
-        self.log_widget.append_log("后端资源已释放。")
+        log_util.info("UI", "后端资源已释放。")
         
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
             if hasattr(widget, 'is_editing') and widget.is_editing:
                 widget.exit_edit_mode()
-        self.log_widget.flush_log_buffer()
         super().closeEvent(event)
 
 def main():
@@ -1348,4 +1337,4 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -43,7 +43,7 @@ class PharosScript:
             self.page.wait.load_start()
 
             # 步骤3: 最大化窗口
-            self.page.set.window.max()
+            # self.page.set.window.max()
 
             # 步骤4: 人性化等待和交互
             AntiSybilDpUtil.human_long_wait()
