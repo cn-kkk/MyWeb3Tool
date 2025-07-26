@@ -1,7 +1,7 @@
 from DrissionPage import ChromiumPage
 from util.okx_wallet_util import OKXWalletUtil
 from util.anti_sybil_dp_util import AntiSybilDpUtil
-from util.log_util import LogUtil
+from util.log_util import log_util
 from util.wallet_util import WalletUtil
 
 
@@ -24,7 +24,7 @@ class PharosScript:
         self.okx_util = OKXWalletUtil()
         self.wallet_util = WalletUtil()
 
-        LogUtil.info(self.user_id, f"开始初始化项目: {self.project_name}")
+        log_util.info(self.user_id, f"开始初始化项目: {self.project_name}")
         try:
             # 步骤1: 解锁钱包 (直接调用，失败时它会自己抛异常)
             self.okx_util.open_and_unlock_drission(self.browser, self.user_id)
@@ -42,7 +42,7 @@ class PharosScript:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
             self.page.wait.load_start()
 
-            # 步骤3: 最大化窗口
+            # 步骤3: 最大化窗口，只有测试脚本时解除注释
             # self.page.set.window.max()
 
             # 步骤4: 人性化等待和交互
@@ -98,10 +98,10 @@ class PharosScript:
 
                 self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 
-            LogUtil.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
+            log_util.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
             AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
         except Exception as e:
-            LogUtil.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
+            log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
             raise
 
     def pharos_task_check_in(self):
@@ -109,7 +109,7 @@ class PharosScript:
         Pharos网页签到任务：自动查找并点击Check in按钮，然后刷新页面并验证状态。
         基于DrissionPage技术栈实现
         """
-        LogUtil.info(self.user_id, "开始执行签到任务...")
+        log_util.info(self.user_id, "开始执行签到任务...")
         try:
             # 步骤1: 等待页面加载并查找 "Check in" 按钮
             self.page.wait.load_start()
@@ -130,10 +130,10 @@ class PharosScript:
             )
 
             if checked_btn and checked_btn.states.is_displayed:
-                LogUtil.info(self.user_id, "—————— 签到任务已成功完成 ——————")
+                log_util.info(self.user_id, "—————— 签到任务已成功完成 ——————")
                 return True
             else:
-                LogUtil.error(self.user_id, "签到任务失败：未找到'Checked'按钮，状态未知。")
+                log_util.error(self.user_id, "签到任务失败：未找到'Checked'按钮，状态未知。")
                 return False
 
         except Exception as e:
@@ -145,17 +145,17 @@ class PharosScript:
                     'xpath://button[contains(text(), "Checked")]', timeout=5
                 )
                 if checked_btn and checked_btn.states.is_displayed:
-                    LogUtil.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
+                    log_util.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
                     return True
             
-            LogUtil.error(self.user_id, f"签到任务执行期间发生意外错误: {e}")
+            log_util.error(self.user_id, f"签到任务执行期间发生意外错误: {e}")
             return False
 
     def pharos_task_swap(self):
         """
         重构后的Swap任务：打开新页面，连接钱包，为后续的兑换操作做准备。
         """
-        LogUtil.info(self.user_id, "开始执行Swap任务...")
+        log_util.info(self.user_id, "开始执行Swap任务...")
         swap_page = None
         try:
             # 步骤1: 打开新的SWAP_URL页面
@@ -179,11 +179,11 @@ class PharosScript:
                     connect_btn.click()
                     AntiSybilDpUtil.human_short_wait()
                     if not self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id):
-                        LogUtil.error(self.user_id, "Swap任务失败：执行OKX钱包连接流程失败。")
+                        log_util.error(self.user_id, "Swap任务失败：执行OKX钱包连接流程失败。")
                         return False
                 else:
                     # 两种按钮都找不到，则任务失败
-                    LogUtil.error(self.user_id, "Swap任务失败：既未找到已连接的钱包按钮，也未找到'Connect'按钮。")
+                    log_util.error(self.user_id, "Swap任务失败：既未找到已连接的钱包按钮，也未找到'Connect'按钮。")
                     return False
 
             # 步骤4: 等待代币数量加载
@@ -195,7 +195,7 @@ class PharosScript:
                 'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]'
             ) # type: ignore
             if not (select_token_btn and select_token_btn.states.is_displayed):
-                LogUtil.error(self.user_id, "Swap任务失败：未找到'Select token'按钮。")
+                log_util.error(self.user_id, "Swap任务失败：未找到'Select token'按钮。")
                 return False
             select_token_btn.click()
             AntiSybilDpUtil.human_short_wait()
@@ -203,7 +203,7 @@ class PharosScript:
             # 步骤6: 在弹窗中选择USDC
             usdc_option = swap_page.ele('xpath://div[@data-testid="common-base-USDC"]') # type: ignore
             if not (usdc_option and usdc_option.states.is_displayed):
-                LogUtil.error(self.user_id, "Swap任务失败：未找到'USDC'选项。")
+                log_util.error(self.user_id, "Swap任务失败：未找到'USDC'选项。")
                 return False
             usdc_option.click()
             AntiSybilDpUtil.human_short_wait()
@@ -211,7 +211,7 @@ class PharosScript:
             # 步骤7: 在PHRS输入框中输入金额
             amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
             if not amount_input:
-                LogUtil.error(self.user_id, "Swap任务失败：未找到金额输入框。")
+                log_util.error(self.user_id, "Swap任务失败：未找到金额输入框。")
                 return False
             # 采用“点击->清空->输入”的终极策略来处理顽固输入框
             amount_input.click()
@@ -227,7 +227,7 @@ class PharosScript:
             # 步骤9: 点击Swap按钮
             swap_btn = swap_page.ele('#swap-button') # type: ignore
             if not (swap_btn and swap_btn.states.is_clickable):
-                LogUtil.error(self.user_id, "Swap任务失败：Swap按钮未出现或不可点击。")
+                log_util.error(self.user_id, "Swap任务失败：Swap按钮未出现或不可点击。")
                 return False
             swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
@@ -235,7 +235,7 @@ class PharosScript:
             # 步骤10: 在弹窗中点击 "Confirm Swap"
             confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
             if not confirm_swap_btn:
-                LogUtil.error(self.user_id, "Swap任务失败：未找到 'Confirm Swap' 按钮。")
+                log_util.error(self.user_id, "Swap任务失败：未找到 'Confirm Swap' 按钮。")
                 return False
             confirm_swap_btn.wait.clickable(timeout=10)
             confirm_swap_btn.click()
@@ -243,7 +243,7 @@ class PharosScript:
 
             # 步骤11: 处理OKX钱包交易确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                LogUtil.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
+                log_util.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
                 return False
             AntiSybilDpUtil.human_huge_wait()
 
@@ -279,15 +279,15 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                LogUtil.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
+                log_util.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
                 return False
             AntiSybilDpUtil.human_huge_wait()
 
-            LogUtil.info(self.user_id, "—————— Swap任务已成功完成 ——————")
+            log_util.info(self.user_id, "—————— Swap任务已成功完成 ——————")
             return True
 
         except Exception as e:
-            LogUtil.error(self.user_id, f"Swap任务执行时发生意外错误: {e}")
+            log_util.error(self.user_id, f"Swap任务执行时发生意外错误: {e}")
             return False
         finally:
             # 任务结束后关闭页面
@@ -298,14 +298,14 @@ class PharosScript:
         """
         执行发送代币任务：滚动页面，点击发送，选择金额，输入随机地址，确认发送。
         """
-        LogUtil.info(self.user_id, "开始执行发送代币任务...")
+        log_util.info(self.user_id, "开始执行发送代币任务...")
         try:
             # 步骤1: 刷新并等待'Send'按钮
             self.page.refresh()
             self.page.wait.load_start()
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:
-                LogUtil.error(self.user_id, "发送代币任务失败：未找到'Send'按钮。")
+                log_util.error(self.user_id, "发送代币任务失败：未找到'Send'按钮。")
                 return False
 
             # 步骤2: 滚动并点击Send按钮
@@ -317,7 +317,7 @@ class PharosScript:
             # 步骤3: 点击金额选项
             amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=15) # type: ignore
             if not amount_option or not amount_option.states.is_displayed:
-                LogUtil.error(self.user_id, "发送代币任务失败：未找到'0.001PHRS'金额选项。")
+                log_util.error(self.user_id, "发送代币任务失败：未找到'0.001PHRS'金额选项。")
                 return False
             amount_option.click()
             AntiSybilDpUtil.human_short_wait()
@@ -325,7 +325,7 @@ class PharosScript:
             # 步骤4: 输入随机地址
             address_input = self.page.ele('xpath://input[@placeholder="Enter Address"]', timeout=10) # type: ignore
             if not address_input or not address_input.states.is_displayed:
-                LogUtil.error(self.user_id, "发送代币任务失败：未找到地址输入框。")
+                log_util.error(self.user_id, "发送代币任务失败：未找到地址输入框。")
                 return False
             random_address = self.wallet_util.generate_random_evm_address()
             address_input.input(random_address)
@@ -334,22 +334,23 @@ class PharosScript:
             # 步骤5: 点击最终的“Send PHRS”按钮
             final_send_button = self.page.ele('xpath://button[text()="Send PHRS"]', timeout=10) # type: ignore
             if not final_send_button or not final_send_button.states.is_displayed:
-                LogUtil.error(self.user_id, "发送代币任务失败：未找到'Send PHRS'按钮。")
+                log_util.error(self.user_id, "发送代币任务失败：未找到'Send PHRS'按钮。")
                 return False
             final_send_button.click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤6: 处理钱包确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                LogUtil.error(self.user_id, "发送代币任务失败：钱包交易确认失败。")
+                log_util.error(self.user_id, "发送代币任务失败：钱包交易确认失败。")
                 return False
             
-            LogUtil.info(self.user_id, "—————— 发送代币任务已成功完成 ——————")
+            log_util.info(self.user_id, "—————— 发送代币任务已成功完成 ——————")
             AntiSybilDpUtil.human_long_wait()
+            AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             return True
 
         except Exception as e:
-            LogUtil.error(self.user_id, f"发送代币任务执行时发生意外错误: {e}")
+            log_util.error(self.user_id, f"发送代币任务执行时发生意外错误: {e}")
             return False
 
 

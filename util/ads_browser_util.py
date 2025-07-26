@@ -9,7 +9,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from DrissionPage import ChromiumPage, ChromiumOptions
-from util.log_util import LogUtil
+from util.log_util import log_util
 import config
 
 
@@ -44,12 +44,12 @@ class AdsBrowserUtil:
                     if len(lines) >= 1:
                         api_base = lines[0].strip()
             except Exception as e:
-                LogUtil.error(
+                log_util.error(
                     "System", f"Failed to read API config from {browser_config_file}: {e}"
                 )
 
         if not api_base or not api_base.startswith(config.API_URL_VALID_PREFIXES):
-            LogUtil.warn(
+            log_util.warn(
                 "System", f"API URL in {browser_config_file} is invalid or empty: {api_base}"
             )
             return ""
@@ -65,7 +65,7 @@ class AdsBrowserUtil:
         api_base = AdsBrowserUtil._get_api_config()
 
         if not api_base:
-            LogUtil.error(
+            log_util.error(
                 "System", f"API URL not configured. Please set it in the first line of {config.BROWSER_CONFIG_FILE}"
             )
             return []
@@ -81,11 +81,11 @@ class AdsBrowserUtil:
                     if uid:
                         user_ids.append(uid)
         else:
-            LogUtil.error("System", f"Browser config file not found: {browser_config_file}")
+            log_util.error("System", f"Browser config file not found: {browser_config_file}")
             return []
 
         if not user_ids:
-            LogUtil.warn(
+            log_util.warn(
                 "System", f"No user_ids found in {browser_config_file}. Cannot connect to any browser."
             )
             return []
@@ -119,15 +119,15 @@ class AdsBrowserUtil:
                     envs.append(DrissionPageEnv(user_id, browser_object))
                 else:
                     api_msg = data.get("msg", "No message from API.")
-                    LogUtil.warn(
+                    log_util.warn(
                         user_id, f"Failed to get connection info for '{user_id}'. API message: {api_msg}. Skipping."
                     )
             except requests.exceptions.RequestException as e:
-                LogUtil.error(
+                log_util.error(
                     user_id, f"Could not connect to AdsPower API for user_id '{user_id}'. Is the local API running? Error: {e}"
                 )
             except Exception as e:
-                LogUtil.error(
+                log_util.error(
                     user_id, f"An unexpected error occurred while connecting to browser '{user_id}': {e}"
                 )
 

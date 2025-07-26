@@ -5,11 +5,11 @@ import os
 try:
     from DrissionPage import ChromiumPage
     from .anti_sybil_dp_util import AntiSybilDpUtil
-    from .log_util import LogUtil
+    from .log_util import log_util
 except ImportError:
     ChromiumPage = None
     AntiSybilDpUtil = None
-    LogUtil = None
+    log_util = None
 
 class OKXWalletUtil:
     """
@@ -46,7 +46,7 @@ class OKXWalletUtil:
             wallet_page.wait.load_start()
 
             if self.EXTENSION_ID not in wallet_page.url:
-                LogUtil.warn("okx_wallet_util","未找到okx钱包页面。")
+                log_util.warn("okx_wallet_util","未找到okx钱包页面。")
                 return False
 
             # 循环处理，直到钱包页面关闭

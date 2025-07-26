@@ -2,7 +2,7 @@ import time
 import random
 
 from DrissionPage import ChromiumPage
-from util.log_util import LogUtil
+from util.log_util import log_util
 
 
 class AntiSybilDpUtil:
@@ -54,7 +54,7 @@ class AntiSybilDpUtil:
             AntiSybilDpUtil.human_short_wait()
             page.scroll.to_top()
         except Exception as e:
-            LogUtil.error("anti_sybil", f"simulate_scroll时发生意外错误: {e}")
+            log_util.error("anti_sybil", f"simulate_scroll时发生意外错误: {e}")
 
     @staticmethod
     def simulate_mouse_move(page: ChromiumPage):
@@ -70,7 +70,7 @@ class AntiSybilDpUtil:
                 ).perform()
                 time.sleep(random.uniform(0.2, 0.5))
         except Exception as e:
-            LogUtil.error("anti_sybil", f"simulate_mouse_move时发生意外错误: {e}")
+            log_util.error("anti_sybil", f"simulate_mouse_move时发生意外错误: {e}")
 
     @staticmethod
     def simulate_random_click(page, user_id: str = "anti_sybil"):
@@ -79,19 +79,19 @@ class AntiSybilDpUtil:
         """
         try:
             if not page:
-                LogUtil.warn(user_id, "simulate_random_click收到了一个空的page对象，已跳过。")
+                log_util.warn(user_id, "simulate_random_click收到了一个空的page对象，已跳过。")
                 return
 
             # 使用JS获取视口大小，这是最可靠的方法
             width, height = page.run_js('return [window.innerWidth, window.innerHeight];')
             x = random.randint(0, int(width * 0.15))
             y = random.randint(int(height * 0.1), int(height * 0.2))
-            LogUtil.info(user_id, f"simulate_random_click: x坐标{x}, y坐标{y}")
+            log_util.info(user_id, f"simulate_random_click: x坐标{x}, y坐标{y}")
             page.actions.move_to(
                 (x, y), duration=random.uniform(0.2, 0.6)
             ).click()
         except Exception as e:
-            LogUtil.error(user_id, f"simulate_random_click时发生意外错误: {e}")
+            log_util.error(user_id, f"simulate_random_click时发生意外错误: {e}")
 
     @staticmethod
     def simulate_typing(page: ChromiumPage, text: str, user_id: str = "anti_sybil"):
@@ -122,7 +122,7 @@ class AntiSybilDpUtil:
             _type_text_by_char(page, text)
 
         except Exception as e:
-            LogUtil.error(user_id, f"simulate_typing时发生意外错误: {e}")
+            log_util.error(user_id, f"simulate_typing时发生意外错误: {e}")
 
     @staticmethod
     def patch_webdriver_fingerprint(page: ChromiumPage):
@@ -175,7 +175,7 @@ class AntiSybilDpUtil:
             """
             page.run_cdp("Page.addScriptToEvaluateOnNewDocument", source=js_script)
         except Exception as e:
-            LogUtil.error("anti_sybil", f"patch_webdriver_fingerprint时发生意外错误: {e}")
+            log_util.error("anti_sybil", f"patch_webdriver_fingerprint时发生意外错误: {e}")
 
 
 if __name__ == "__main__":
