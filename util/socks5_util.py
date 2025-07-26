@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
-from typing import List, Optional, Dict
-from config import SOCKS5_CONFIG_FILE, DATA_SEPARATOR
+from typing import List, Dict
+from config import AppConfig
 
 # socks5ip的实体类
 @dataclass
@@ -16,7 +16,7 @@ class Socks5Proxy:
 
 # socks5工具类，包含读取和保存
 class Socks5Util:
-    def __init__(self, file_path: str = SOCKS5_CONFIG_FILE):
+    def __init__(self, file_path: str = AppConfig.SOCKS5_CONFIG_FILE):
         self.file_path = file_path
     
     def read_proxies(self) -> List[Socks5Proxy]:
@@ -35,7 +35,7 @@ class Socks5Util:
                     
                     try:
                         # 解析格式: ip----port----username----password
-                        parts = line.split(DATA_SEPARATOR)
+                        parts = line.split(AppConfig.DATA_SEPARATOR)
                         if len(parts) != 4:
                             print(f"警告: 第{line_num}行格式错误: {line}")
                             continue
@@ -72,7 +72,7 @@ class Socks5Util:
             os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 for config in configs:
-                    line = f"{config['ip']}{DATA_SEPARATOR}{config['port']}{DATA_SEPARATOR}{config['username']}{DATA_SEPARATOR}{config['password']}\n"
+                    line = f"{config['ip']}{AppConfig.DATA_SEPARATOR}{config['port']}{AppConfig.DATA_SEPARATOR}{config['username']}{AppConfig.DATA_SEPARATOR}{config['password']}\n"
                     f.write(line)
             return True
         except Exception as e:

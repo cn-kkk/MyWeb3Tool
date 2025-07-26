@@ -10,7 +10,7 @@ if project_root not in sys.path:
 
 from DrissionPage import ChromiumPage, ChromiumOptions
 from util.log_util import log_util
-import config
+from config import AppConfig
 
 
 class DrissionPageEnv:
@@ -36,7 +36,7 @@ class AdsBrowserUtil:
     def _get_api_config():
         """从browser.txt读取API配置"""
         api_base = ""
-        browser_config_file = config.BROWSER_CONFIG_FILE
+        browser_config_file = AppConfig.BROWSER_CONFIG_FILE
         if os.path.exists(browser_config_file):
             try:
                 with open(browser_config_file, "r", encoding="utf-8") as f:
@@ -48,7 +48,7 @@ class AdsBrowserUtil:
                     "System", f"Failed to read API config from {browser_config_file}: {e}"
                 )
 
-        if not api_base or not api_base.startswith(config.API_URL_VALID_PREFIXES):
+        if not api_base or not api_base.startswith(AppConfig.API_URL_VALID_PREFIXES):
             log_util.warn(
                 "System", f"API URL in {browser_config_file} is invalid or empty: {api_base}"
             )
@@ -66,12 +66,12 @@ class AdsBrowserUtil:
 
         if not api_base:
             log_util.error(
-                "System", f"API URL not configured. Please set it in the first line of {config.BROWSER_CONFIG_FILE}"
+                "System", f"API URL not configured. Please set it in the first line of {AppConfig.BROWSER_CONFIG_FILE}"
             )
             return []
 
         user_ids = []
-        browser_config_file = config.BROWSER_CONFIG_FILE
+        browser_config_file = AppConfig.BROWSER_CONFIG_FILE
         if os.path.exists(browser_config_file):
             with open(browser_config_file, "r", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -91,7 +91,7 @@ class AdsBrowserUtil:
             return []
 
         envs = []
-        active_endpoint = config.API_ENDPOINTS["browser_active"]
+        active_endpoint = AppConfig.API_ENDPOINTS["browser_active"]
 
         for user_id in user_ids:
             try:
@@ -120,15 +120,15 @@ class AdsBrowserUtil:
                 else:
                     api_msg = data.get("msg", "No message from API.")
                     log_util.warn(
-                        user_id, f"Failed to get connection info for '{user_id}'. API message: {api_msg}. Skipping."
+                        user_id, f"找不到叫这个'{user_id}'的ads浏览器. API message: {api_msg}. 跳过处理."
                     )
             except requests.exceptions.RequestException as e:
                 log_util.error(
-                    user_id, f"Could not connect to AdsPower API for user_id '{user_id}'. Is the local API running? Error: {e}"
+                    user_id, f"ADS api连接失败，请检查是否启动ads客户端? Error: {e}"
                 )
             except Exception as e:
                 log_util.error(
-                    user_id, f"An unexpected error occurred while connecting to browser '{user_id}': {e}"
+                    user_id, f"连接'{user_id}'这个浏览器出现异常: {e}"
                 )
 
         return envs

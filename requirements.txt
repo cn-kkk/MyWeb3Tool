@@ -1,8 +1,15 @@
-requests>=2.25.1
-PySocks>=1.7.1
-web3>=6.0.0
-PyQt5>=5.15.0
-selenium>=4.0.0
+# 核心自动化框架
+DrissionPage>=4.0.0
+
+# 以太坊账户操作
+eth-account>=0.11.0
+
+# UI框架
+PyQt5>=5.15.4
 pyautogui>=0.9.54
-pyperclip>=1.8.2
-drissionpage
+
+# 网络请求
+requests>=2.25.1
+
+# 其他工具
+Markdown>=3.3.4

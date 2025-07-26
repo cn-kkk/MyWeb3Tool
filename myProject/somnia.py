@@ -1,7 +1,5 @@
 import time
 from util.okx_wallet_util import OKXWalletUtil
-from util.log_util import log_util
-from config import OKX_EXTENSION_ID
 
 class SomniaScript:
     """

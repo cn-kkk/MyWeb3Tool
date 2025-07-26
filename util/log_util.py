@@ -8,7 +8,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from config import LOGS_DIR, LOG_FILENAME_PREFIX, LOG_FILENAME_FORMAT
+from config import AppConfig
 
 class LogUtil:
     """
@@ -35,11 +35,11 @@ class LogUtil:
             self.log_buffer = []
             self.buffer_lock = threading.Lock()
             
-            if not os.path.exists(LOGS_DIR):
-                os.makedirs(LOGS_DIR)
+            if not os.path.exists(AppConfig.LOGS_DIR):
+                os.makedirs(AppConfig.LOGS_DIR)
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.log_filename = os.path.join(LOGS_DIR, LOG_FILENAME_FORMAT.format(prefix=LOG_FILENAME_PREFIX, timestamp=timestamp))
+            self.log_filename = os.path.join(AppConfig.LOGS_DIR, AppConfig.LOG_FILENAME_FORMAT.format(prefix=AppConfig.LOG_FILENAME_PREFIX, timestamp=timestamp))
             
             self.flush_interval = 3.0  # 写入间隔为3秒
             self.timer = None

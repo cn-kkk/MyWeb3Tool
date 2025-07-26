@@ -2,7 +2,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from typing import List, Dict
-from config import WALLET_CONFIG_FILE, DATA_SEPARATOR
+from config import AppConfig
 from eth_account import Account
 
 
@@ -14,7 +14,7 @@ class Wallet:
 
 # 钱包工具类，包含读取和保存
 class WalletUtil:
-    def __init__(self, file_path: str = WALLET_CONFIG_FILE):
+    def __init__(self, file_path: str = AppConfig.WALLET_CONFIG_FILE):
         self.file_path = file_path
 
     def read_wallets(self) -> List[Wallet]:
@@ -28,7 +28,7 @@ class WalletUtil:
                     line = line.strip()
                     if not line or line.startswith("#"):
                         continue
-                    parts = line.split(DATA_SEPARATOR)
+                    parts = line.split(AppConfig.DATA_SEPARATOR)
                     if len(parts) != 2:
                         print(f"警告: 第{line_num}行格式错误: {line}")
                         continue
@@ -48,9 +48,7 @@ class WalletUtil:
             os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
             with open(self.file_path, "w", encoding="utf-8") as f:
                 for config in configs:
-                    line = (
-                        f"{config['privateKey']}{DATA_SEPARATOR}{config['address']}\n"
-                    )
+                    line = (                        f"{config['privateKey']}{AppConfig.DATA_SEPARATOR}{config['address']}\n"                    )
                     f.write(line)
             return True
         except Exception as e:

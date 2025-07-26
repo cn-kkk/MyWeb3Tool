@@ -1,24 +1,27 @@
 import markdown
 import sys
 import os
-import time
-import json
-from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QListWidget, 
-    QTextEdit, QPushButton, QLabel, QPlainTextEdit, QFormLayout, QLineEdit, 
-    QStackedWidget, QSizePolicy, QSpacerItem, QComboBox, QMessageBox,
-    QFrame, QSplitter, QScrollArea, QTableWidget, QTableWidgetItem, QHeaderView,
+    QTextEdit, QPushButton, QLabel, QPlainTextEdit, 
+    QStackedWidget, QMessageBox,
+    QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QStyledItemDelegate, QProxyStyle, QStyle
 )
-from PyQt5.QtCore import Qt, QSize, QTimer, pyqtSignal, QThread
-from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject
+from PyQt5.QtGui import QFont, QColor, QPalette
 
 # 导入后端控制器和日志工具
 from applicationController import app_controller
 from util.log_util import log_util
 
-from config import APP_NAME, APP_VERSION, UI_FONTS, LOGS_DIR, LOG_FILENAME_PREFIX, LOG_FILENAME_FORMAT, API_URL_VALID_PREFIXES
+from config import AppConfig
+
+class QtLogHandler(QObject):
+    log_signal = pyqtSignal(str)
+
+    def handle(self, msg):
+        self.log_signal.emit(msg)
 
 class BackendInitializationThread(QThread):
     """用于在后台初始化控制器的线程"""
@@ -375,7 +378,7 @@ class MyToolApplication(QWidget):
         self.start_backend_initialization()
         
     def init_ui(self):
-        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}"); self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle(f"{AppConfig.APP_NAME} v{AppConfig.APP_VERSION}"); self.setGeometry(100, 100, 1200, 800)
         self.setStyleSheet(''' QWidget { background-color: white; font-family: 'Microsoft YaHei'; } QTabWidget::pane { border: none; background: white; } QTabBar::tab { background: #f0f0f0; color: #333; padding: 14px 36px; margin-right: 4px; border-top-left-radius: 12px; border-top-right-radius: 12px; font-size: 18px; font-weight: bold; min-width: 120px; max-width: 300px; } QTabBar::tab:selected { background: #0078d4; color: white; } QTabBar::tab:hover { background: #e0e0e0; } QTabBar::tab:selected:hover { background: #0078d4; } ''')
         main_layout = QVBoxLayout()
         self.tab_widget = QTabWidget(); self.tab_widget.setStyleSheet("QTabWidget::pane { border: none; }")
@@ -386,7 +389,12 @@ class MyToolApplication(QWidget):
         main_layout.addWidget(self.tab_widget)
         log_label = QLabel("日志"); log_label.setFont(QFont('Microsoft YaHei', 12, QFont.Weight.Bold)); log_label.setStyleSheet("color: #333; margin: 10px 0 5px 0;"); main_layout.addWidget(log_label)
         main_layout.addWidget(self.log_widget); self.setLayout(main_layout)
-        log_util.add_ui_handler(self.log_widget.append_log)
+
+        # 设置线程安全的日志处理器
+        log_handler = QtLogHandler()
+        log_handler.log_signal.connect(self.log_widget.append)
+        log_util.add_ui_handler(log_handler.handle)
+
         log_util.info("UI", "应用程序UI已加载，正在初始化后端...")
         self.tab_widget.tabBar().installEventFilter(self); self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
@@ -422,8 +430,11 @@ class MyToolApplication(QWidget):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("S1mpleWeb3Tool"); app.setApplicationVersion("1.0.0"); app.setOrganizationName("S1mpleWeb3Tool")
-    window = MyToolApplication(); window.show()
+    app.setApplicationName(AppConfig.APP_NAME)
+    app.setApplicationVersion(AppConfig.APP_VERSION)
+    app.setOrganizationName(AppConfig.APP_NAME)  # Typically same as App Name
+    window = MyToolApplication()
+    window.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

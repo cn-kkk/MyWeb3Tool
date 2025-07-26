@@ -7,7 +7,7 @@ import ctypes
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait
 from util.log_util import log_util
-import config
+from config import AppConfig
 from util.ads_browser_util import AdsBrowserUtil, DrissionPageEnv
 from util.socks5_util import Socks5Util
 from util.wallet_util import WalletUtil
@@ -36,7 +36,7 @@ class ApplicationController:
 
     def __init__(self):
         log_util.info("控制器", "正在初始化应用程序控制器...")
-        self.config = config
+        self.config = AppConfig
         self.pages = []
         self.projects = []
         self.max_workers = 4
@@ -198,9 +198,9 @@ class ApplicationController:
 
     def get_browser_configs(self):
         log_util.info("控制器", "正在加载浏览器配置...")
-        if os.path.exists(config.BROWSER_CONFIG_FILE):
+        if os.path.exists(AppConfig.BROWSER_CONFIG_FILE):
             try:
-                with open(config.BROWSER_CONFIG_FILE, "r", encoding="utf-8") as f:
+                with open(AppConfig.BROWSER_CONFIG_FILE, "r", encoding="utf-8") as f:
                     return f.read()
             except Exception as e:
                 log_util.error("控制器", f"读取浏览器配置失败: {e}", exc_info=True)
@@ -209,11 +209,11 @@ class ApplicationController:
     def save_browser_configs(self, content):
         log_util.info("控制器", "正在保存浏览器配置...")
         try:
-            os.makedirs(os.path.dirname(config.BROWSER_CONFIG_FILE), exist_ok=True)
-            with open(config.BROWSER_CONFIG_FILE, "w", encoding="utf-8") as f:
+            os.makedirs(os.path.dirname(AppConfig.BROWSER_CONFIG_FILE), exist_ok=True)
+            with open(AppConfig.BROWSER_CONFIG_FILE, "w", encoding="utf-8") as f:
                 f.write(content)
             lines = content.strip().split("\n")
-            if len(lines) >= 1 and not lines[0].strip().startswith(config.API_URL_VALID_PREFIXES):
+            if len(lines) >= 1 and not lines[0].strip().startswith(AppConfig.API_URL_VALID_PREFIXES):
                 log_util.warn("控制器", "浏览器配置已保存，但API URL格式似乎不正确。")
             return True
         except Exception as e:
