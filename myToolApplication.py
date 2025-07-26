@@ -18,6 +18,7 @@ from PyQt5.QtGui import QFont, QColor, QPalette, QBrush, QIcon
 from applicationController import app_controller
 
 from config import APP_NAME, UI_FONTS, LOGS_DIR, LOG_FILENAME_PREFIX, LOG_FILENAME_FORMAT, API_URL_VALID_PREFIXES
+from util.log_util import LogUtil
 
 
 class BackendInitializationThread(QThread):
@@ -1310,9 +1311,9 @@ class MyToolApplication(QWidget):
     
     def closeEvent(self, event):
         # 3. 在关闭时调用后端的shutdown方法
-        log_util.info("UI", "应用程序正在关闭，开始释放后端资源...")
+        LogUtil.info("UI", "应用程序正在关闭，开始释放后端资源...")
         self.controller.shutdown()
-        log_util.info("UI", "后端资源已释放。")
+        LogUtil.info("UI", "后端资源已释放。")
         
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
