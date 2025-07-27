@@ -6,10 +6,10 @@ from PyQt5.QtWidgets import (
     QTextEdit, QPushButton, QLabel, QPlainTextEdit, 
     QStackedWidget, QMessageBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
-    QStyledItemDelegate, QProxyStyle, QStyle
+    QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject
-from PyQt5.QtGui import QFont, QColor, QPalette
+from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator
 
 # 导入后端控制器和日志工具
 from applicationController import app_controller
@@ -114,6 +114,7 @@ class ConfigTableWidget(QTableWidget):
         self.setStyle(NoFocusRectStyle(self.style()))
         self.setColumnCount(len(headers))
         self.setHorizontalHeaderLabels(headers)
+        self.verticalHeader().setVisible(False)
         self.setStyleSheet('''
             QTableWidget { background-color: white; border: 1px solid #d0d0d0; border-radius: 12px; gridline-color: #e0e0e0; }
             QTableWidget::item { padding: 8px; border: none; border-radius: 8px; background: transparent; }
@@ -335,39 +336,222 @@ class ConfigTab(QWidget):
             elif index == 1: self.wallet_config_widget.load_config()
             elif index == 2: self.browser_config_widget.load_config()
 
+class SequenceItemWidget(QWidget):
+    """任务序列中的自定义条目控件"""
+    remove_requested = pyqtSignal(QListWidgetItem)
+
+    def __init__(self, project_name, task_name, count, list_item):
+        super().__init__()
+        self.project_name = project_name
+        self.task_name = task_name
+        self.count = count
+        self.list_item = list_item
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        name_text = f"<span style='color: #888;'>[{self.project_name}]</span> <b>{self.task_name}</b> (执行 {self.count} 次)"
+        name_label = QLabel(name_text)
+        name_label.setWordWrap(True)
+        
+        remove_btn = QPushButton("移除")
+        remove_btn.setStyleSheet("background-color: #e74c3c; color: white; border-radius: 4px; padding: 5px 10px;")
+        remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.list_item))
+
+        layout.addWidget(name_label)
+        layout.addStretch()
+        layout.addWidget(remove_btn)
+
+    def get_sequence_data(self):
+        return {
+            'project_name': self.project_name,
+            'task_name': self.task_name,
+            'count': self.count
+        }
+
 class ProjectTab(QWidget):
-    """项目标签页，自动加载myProject下所有项目脚本"""
+    """项目标签页，采用两栏布局，左侧为可用任务，右侧为任务序列"""
     def __init__(self):
         super().__init__()
         self.project_classes = []
         self.init_ui()
 
     def init_ui(self):
-        layout = QHBoxLayout(); self.sidebar = StyledSidebar([], 200); self.sidebar.currentRowChanged.connect(self.on_sidebar_changed); layout.addWidget(self.sidebar)
-        splitter = QFrame(); splitter.setFrameShape(QFrame.VLine); splitter.setFrameShadow(QFrame.Sunken); splitter.setLineWidth(2); layout.addWidget(splitter)
-        self.content_stack = QStackedWidget(); layout.addWidget(self.content_stack); self.setLayout(layout)
+        main_layout = QHBoxLayout(self)
+        splitter = QSplitter(Qt.Horizontal)
+
+        # --- Left Panel: Available Projects and Tasks ---
+        left_panel = QWidget()
+        left_layout = QHBoxLayout(left_panel)
+        
+        self.sidebar = StyledSidebar([], 200)
+        self.sidebar.currentRowChanged.connect(self.on_sidebar_changed)
+        
+        self.content_stack = QStackedWidget()
+
+        left_layout.addWidget(self.sidebar)
+        left_layout.addWidget(self.content_stack)
+        
+        # --- Right Panel: Task Sequence ---
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(10, 20, 10, 10)
+
+        seq_title = QLabel("任务执行序列")
+        seq_title.setFont(QFont('Microsoft YaHei', 14, QFont.Weight.Bold))
+        seq_title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+
+        self.sequence_list = QListWidget()
+        self.sequence_list.setStyleSheet("QListWidget { border: 1px solid #ccc; border-radius: 8px; }")
+
+        # Action Buttons
+        action_layout = QHBoxLayout()
+        run_seq_btn = QPushButton("执行序列")
+        run_seq_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
+        run_seq_btn.clicked.connect(self.on_run_sequence_clicked)
+
+        clear_seq_btn = QPushButton("清空序列")
+        clear_seq_btn.setStyleSheet("background-color: #95a5a6; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
+        clear_seq_btn.clicked.connect(self.sequence_list.clear)
+        
+        action_layout.addStretch()
+        action_layout.addWidget(clear_seq_btn)
+        action_layout.addWidget(run_seq_btn)
+
+        right_layout.addWidget(seq_title)
+        right_layout.addWidget(self.sequence_list)
+        right_layout.addLayout(action_layout)
+
+        splitter.addWidget(left_panel)
+        splitter.addWidget(right_panel)
+        splitter.setSizes([750, 250]) # Adjusted size distribution
+        main_layout.addWidget(splitter)
 
     def populate_projects(self, projects):
         self.project_classes = projects
         self.sidebar.clear()
         while self.content_stack.count() > 0:
-            widget = self.content_stack.widget(0); self.content_stack.removeWidget(widget); widget.deleteLater()
+            widget = self.content_stack.widget(0)
+            self.content_stack.removeWidget(widget)
+            widget.deleteLater()
+        
         for proj in self.project_classes:
-            self.sidebar.addItem(proj['project_name']); self.content_stack.addWidget(self.create_project_widget(proj))
-        if self.project_classes: self.sidebar.setCurrentRow(0)
+            self.sidebar.addItem(proj['project_name'])
+            self.content_stack.addWidget(self.create_available_tasks_widget(proj))
+        
+        if self.project_classes:
+            self.sidebar.setCurrentRow(0)
 
-    def create_project_widget(self, proj):
-        widget = QWidget(); vlayout = QVBoxLayout()
-        project_desc_label = QLabel(proj.get('project_desc', '没有项目描述。')); project_desc_label.setFont(QFont('Microsoft YaHei', 12)); project_desc_label.setStyleSheet('color: #666; margin: 10px 0;'); vlayout.addWidget(project_desc_label)
-        run_all_btn = QPushButton(f"一键运行 {proj['project_name']} 所有任务"); run_all_btn.setStyleSheet(''' QPushButton { background-color: #0078d4; color: white; font-weight: bold; font-size: 16px; padding: 12px; border-radius: 8px; } QPushButton:hover { background-color: #106ebe; } '''); run_all_btn.clicked.connect(lambda _, p=proj: [app_controller.dispatch_task(p['project_name'], task['name']) for task in p['tasks']]); vlayout.addWidget(run_all_btn, alignment=Qt.AlignmentFlag.AlignLeft)
-        line = QFrame(); line.setFrameShape(QFrame.HLine); line.setFrameShadow(QFrame.Sunken); vlayout.addWidget(line)
+    def create_available_tasks_widget(self, proj):
+        widget = QWidget()
+        main_layout = QVBoxLayout(widget)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
+
+        project_desc_label = QLabel(proj.get('project_desc', '没有项目描述。'))
+        project_desc_label.setFont(QFont('Microsoft YaHei', 14, QFont.Weight.Bold))
+        project_desc_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        project_desc_label.setWordWrap(True)
+        main_layout.addWidget(project_desc_label)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll_content = QWidget()
+        tasks_layout = QVBoxLayout(scroll_content)
+        tasks_layout.setContentsMargins(0, 0, 0, 0)
+        tasks_layout.setSpacing(10)
+
         for task in proj['tasks']:
-            task_group_layout = QHBoxLayout(); task_label = QLabel(f"<b>{task['name']}</b>: {task['desc']}"); task_label.setWordWrap(True)
-            task_btn = QPushButton(f"运行"); task_btn.setFixedWidth(120); task_btn.setStyleSheet(''' QPushButton { background-color: #107c10; color: white; font-weight: bold; font-size: 16px; padding: 12px; border-radius: 5px; } QPushButton:hover { background-color: #0e6e0e; } '''); task_btn.clicked.connect(lambda _, p=proj, t=task: app_controller.dispatch_task(p['project_name'], t['name']))
-            task_group_layout.addWidget(task_label); task_group_layout.addStretch(); task_group_layout.addWidget(task_btn); vlayout.addLayout(task_group_layout)
-        vlayout.addStretch(); widget.setLayout(vlayout); return widget
+            task_frame = QFrame()
+            task_frame.setStyleSheet("background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px;")
+            task_frame_layout = QVBoxLayout(task_frame)
 
-    def on_sidebar_changed(self, index): self.content_stack.setCurrentIndex(index)
+            top_row_layout = QHBoxLayout()
+            task_name_label = QLabel(f"<b>任务:</b> {task['name']}")
+            task_name_label.setFont(QFont('Microsoft YaHei', 12, QFont.Weight.Bold))
+            
+            top_row_layout.addWidget(task_name_label)
+            top_row_layout.addStretch()
+
+            # New execution count and add button
+            count_input = QLineEdit("1")
+            count_input.setFixedWidth(100)
+            count_input.setValidator(QIntValidator(1, 99))
+            count_input.setAlignment(Qt.AlignCenter)
+            if task.get('limit') == 'once_per_day':
+                count_input.setEnabled(False)
+
+            add_btn = QPushButton("添加")
+            add_btn.setFixedWidth(80)
+            add_btn.setStyleSheet("background-color: #3498db; color: white; font-weight: bold; padding: 8px; border-radius: 4px;")
+            add_btn.clicked.connect(lambda _, p=proj, t=task, i=count_input: self.add_task_to_sequence(p, t, i))
+
+            add_label = QLabel("添加")
+            add_label.setStyleSheet("border: none; background-color: transparent;")
+            suffix_label = QLabel("次到执行序列")
+            suffix_label.setStyleSheet("border: none; background-color: transparent;")
+
+            top_row_layout.addWidget(add_label)
+            top_row_layout.addWidget(count_input)
+            top_row_layout.addWidget(suffix_label)
+            top_row_layout.addWidget(add_btn)
+
+            task_frame_layout.addLayout(top_row_layout)
+
+            task_desc_label = QLabel(task.get('desc', '没有任务描述。').strip())
+            task_desc_label.setFont(QFont('Microsoft YaHei', 10))
+            task_desc_label.setWordWrap(True)
+            task_desc_label.setStyleSheet("color: #7f8c8d; margin-top: 8px;")
+            task_frame_layout.addWidget(task_desc_label)
+            
+            tasks_layout.addWidget(task_frame)
+
+        tasks_layout.addStretch()
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
+        return widget
+
+    def add_task_to_sequence(self, project, task, count_input):
+        count_text = count_input.text()
+        if not count_text.isdigit() or not (1 <= int(count_text) <= 99):
+            QMessageBox.warning(self, "输入无效", "执行次数必须是 1 到 99 之间的整数。")
+            return
+
+        count = int(count_text)
+        list_item = QListWidgetItem(self.sequence_list)
+        item_widget = SequenceItemWidget(project['project_name'], task['name'], count, list_item)
+        item_widget.remove_requested.connect(self.remove_item_from_sequence)
+        
+        list_item.setSizeHint(item_widget.sizeHint())
+        self.sequence_list.addItem(list_item)
+        self.sequence_list.setItemWidget(list_item, item_widget)
+
+    def remove_item_from_sequence(self, list_item):
+        row = self.sequence_list.row(list_item)
+        self.sequence_list.takeItem(row)
+
+    def on_sidebar_changed(self, index):
+        self.content_stack.setCurrentIndex(index)
+
+    def on_run_sequence_clicked(self):
+        sequence_data = []
+        for i in range(self.sequence_list.count()):
+            item = self.sequence_list.item(i)
+            widget = self.sequence_list.itemWidget(item)
+            if widget:
+                sequence_data.append(widget.get_sequence_data())
+        
+        if not sequence_data:
+            QMessageBox.information(self, "序列为空", "请先将任务添加到执行序列。")
+            return
+
+        log_util.info("UI", f"校验通过：准备执行任务序列，共 {len(sequence_data)} 个任务。")
+        details = "\n".join([f"- {item['project_name']}: {item['task_name']} (执行 {item['count']} 次)" for item in sequence_data])
+        QMessageBox.information(self, "序列准备就绪", f"准备执行以下任务序列：\n\n{details}")
+
 
 class MyToolApplication(QWidget):
     """主应用程序窗口"""
@@ -432,7 +616,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName(AppConfig.APP_NAME)
     app.setApplicationVersion(AppConfig.APP_VERSION)
-    app.setOrganizationName(AppConfig.APP_NAME)  # Typically same as App Name
+    app.setOrganizationName(AppConfig.APP_NAME)
     window = MyToolApplication()
     window.show()
     sys.exit(app.exec_())
