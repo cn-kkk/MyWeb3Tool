@@ -1,5 +1,6 @@
 import os
 import importlib.util
+
 import inspect
 import pyautogui
 import time
@@ -73,7 +74,12 @@ class ApplicationController:
                                     if "_task_" in attr:
                                         method = getattr(obj, attr)
                                         if callable(method):
-                                            tasks.append({"name": attr, "desc": method.__doc__ or ""})
+                                            task_limit = getattr(method, '_task_limit', None)
+                                            tasks.append({
+                                                "name": attr, 
+                                                "desc": method.__doc__ or "",
+                                                "limit": task_limit
+                                            })
                                 self.projects.append({"project_name": project_name, "project_desc": getattr(obj, "project_desc", ""), "tasks": tasks, "class": obj})
                                 existing_projects.add(project_name)
                                 log_util.info("控制器", f"发现项目: {project_name}")

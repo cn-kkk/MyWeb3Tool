@@ -3,6 +3,7 @@ from util.okx_wallet_util import OKXWalletUtil
 from util.anti_sybil_dp_util import AntiSybilDpUtil
 from util.log_util import log_util
 from util.wallet_util import WalletUtil
+from annotation.task_annotation import task_annotation
 
 
 class PharosScript:
@@ -104,10 +105,10 @@ class PharosScript:
             log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
             raise
 
+    @task_annotation.once_per_day
     def pharos_task_check_in(self):
         """
-        Pharos网页签到任务：自动查找并点击Check in按钮，然后刷新页面并验证状态。
-        基于DrissionPage技术栈实现
+        签到任务：自动查找并点击Check in按钮，然后刷新页面并验证状态。
         """
         log_util.info(self.user_id, "开始执行签到任务...")
         try:
@@ -153,7 +154,7 @@ class PharosScript:
 
     def pharos_task_swap(self):
         """
-        重构后的Swap任务：打开新页面，连接钱包，为后续的兑换操作做准备。
+        Swap任务：打开新页面，连接钱包，默认会swap0.005个PHRS到USDC，然后会swap回来。
         """
         log_util.info(self.user_id, "开始执行Swap任务...")
         swap_page = None
@@ -296,7 +297,7 @@ class PharosScript:
 
     def pharos_task_send_tokens(self):
         """
-        执行发送代币任务：滚动页面，点击发送，选择金额，输入随机地址，确认发送。
+        发送代币任务：滚动页面，打开发送弹窗，输入随机地址，确认发送。
         """
         log_util.info(self.user_id, "开始执行发送代币任务...")
         try:
