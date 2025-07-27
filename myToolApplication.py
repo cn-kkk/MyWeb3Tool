@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject
-from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator
+from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon
 
 # 导入后端控制器和日志工具
 from applicationController import app_controller
@@ -370,16 +370,32 @@ class SequenceItemWidget(QWidget):
 
     def get_sequence_data(self):
         return {
-            'project_name': self.project_name,
             'task_name': self.task_name,
-            'count': self.count
+            'repetition': self.count # Use repetition
         }
+
+class TaskDispatchThread(QThread):
+    """专门用于在后台分发任务并等待其完成的线程，以防阻塞UI主线程"""
+    finished = pyqtSignal() # Signal to indicate completion
+
+    def __init__(self, controller, sequence):
+        super().__init__()
+        self.controller = controller
+        self.sequence = sequence
+
+    def run(self):
+        try:
+            self.controller.dispatch_sequence(self.sequence)
+        finally:
+            self.finished.emit()
 
 class ProjectTab(QWidget):
     """项目标签页，采用两栏布局，左侧为可用任务，右侧为任务序列"""
     def __init__(self):
         super().__init__()
         self.project_classes = []
+        self.dispatch_thread = None
+        self.is_running = False # State lock
         self.init_ui()
 
     def init_ui(self):
@@ -409,21 +425,27 @@ class ProjectTab(QWidget):
 
         self.sequence_list = QListWidget()
         self.sequence_list.setStyleSheet("QListWidget { border: 1px solid #ccc; border-radius: 8px; }")
-        self.sequence_list.setSpacing(8) # Add spacing between items
+        self.sequence_list.setSpacing(8)
 
         # Action Buttons
         action_layout = QHBoxLayout()
-        run_seq_btn = QPushButton("执行序列")
-        run_seq_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
-        run_seq_btn.clicked.connect(self.on_run_sequence_clicked)
+        self.stop_btn = QPushButton("停止执行")
+        self.stop_btn.setStyleSheet("background-color: #d35400; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
+        self.stop_btn.clicked.connect(app_controller.interrupt_tasks)
+        self.stop_btn.setEnabled(False) # Initially disabled
 
-        clear_seq_btn = QPushButton("清空序列")
-        clear_seq_btn.setStyleSheet("background-color: #95a5a6; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
-        clear_seq_btn.clicked.connect(self.sequence_list.clear)
+        self.run_seq_btn = QPushButton("执行序列")
+        self.run_seq_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
+        self.run_seq_btn.clicked.connect(self.on_run_sequence_clicked)
+
+        self.clear_seq_btn = QPushButton("清空序列")
+        self.clear_seq_btn.setStyleSheet("background-color: #95a5a6; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
+        self.clear_seq_btn.clicked.connect(self.sequence_list.clear)
         
+        action_layout.addWidget(self.stop_btn)
         action_layout.addStretch()
-        action_layout.addWidget(clear_seq_btn)
-        action_layout.addWidget(run_seq_btn)
+        action_layout.addWidget(self.clear_seq_btn)
+        action_layout.addWidget(self.run_seq_btn)
 
         right_layout.addWidget(seq_title)
         right_layout.addWidget(self.sequence_list)
@@ -431,7 +453,7 @@ class ProjectTab(QWidget):
 
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([750, 250]) # Adjusted size distribution
+        splitter.setSizes([750, 250])
         main_layout.addWidget(splitter)
 
     def populate_projects(self, projects):
@@ -519,6 +541,10 @@ class ProjectTab(QWidget):
         return widget
 
     def add_task_to_sequence(self, project, task, count_input):
+        if self.is_running:
+            QMessageBox.warning(self, "操作无效", "任务正在执行时，无法修改任务序列。")
+            return
+
         count_text = count_input.text()
         if not count_text.isdigit() or not (1 <= int(count_text) <= 99):
             QMessageBox.warning(self, "输入无效", "执行次数必须是 1 到 99 之间的整数。")
@@ -526,15 +552,13 @@ class ProjectTab(QWidget):
 
         count = int(count_text)
 
-        # Check for existing task and remove it to overwrite
         for i in range(self.sequence_list.count()):
             item = self.sequence_list.item(i)
             widget = self.sequence_list.itemWidget(item)
             if widget and widget.project_name == project['project_name'] and widget.task_name == task['name']:
                 self.sequence_list.takeItem(i)
-                break # Found and removed, no need to continue loop
+                break
 
-        # Add the new or updated task
         list_item = QListWidgetItem(self.sequence_list)
         item_widget = SequenceItemWidget(project['project_name'], task['name'], count, list_item)
         item_widget.remove_requested.connect(self.remove_item_from_sequence)
@@ -544,6 +568,9 @@ class ProjectTab(QWidget):
         self.sequence_list.setItemWidget(list_item, item_widget)
 
     def remove_item_from_sequence(self, list_item):
+        if self.is_running:
+            QMessageBox.warning(self, "操作无效", "任务正在执行时，无法修改任务序列。")
+            return
         row = self.sequence_list.row(list_item)
         self.sequence_list.takeItem(row)
 
@@ -551,6 +578,9 @@ class ProjectTab(QWidget):
         self.content_stack.setCurrentIndex(index)
 
     def on_run_sequence_clicked(self):
+        if self.is_running:
+            return # Should not happen as button is disabled, but as a safeguard
+
         sequence_data = []
         for i in range(self.sequence_list.count()):
             item = self.sequence_list.item(i)
@@ -562,9 +592,30 @@ class ProjectTab(QWidget):
             QMessageBox.information(self, "序列为空", "请先将任务添加到执行序列。")
             return
 
-        log_util.info("UI", f"校验通过：准备执行任务序列，共 {len(sequence_data)} 个任务。")
-        details = "\n".join([f"- {item['project_name']}: {item['task_name']} (执行 {item['count']} 次)" for item in sequence_data])
-        QMessageBox.information(self, "序列准备就绪", f"准备执行以下任务序列：\n\n{details}")
+        # --- Lock and run ---
+        self.is_running = True
+        self.update_button_states()
+        app_controller.interrupt_event.clear()
+
+        log_util.info("UI", f"任务序列已提交给后端执行，共 {len(sequence_data)} 个任务。")
+        QMessageBox.information(self, "任务开始", f"开始执行任务。")
+        
+        self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data)
+        self.dispatch_thread.finished.connect(self.on_sequence_finished)
+        self.dispatch_thread.start()
+
+    def on_sequence_finished(self):
+        self.is_running = False
+        self.update_button_states()
+        self.sequence_list.clear() # Automatically clear the sequence
+        log_util.info("UI", "任务序列已全部执行完毕，并已清空显示列表。")
+        QMessageBox.information(self, "任务完成", "任务序列已全部执行完毕。")
+
+    def update_button_states(self):
+        self.run_seq_btn.setEnabled(not self.is_running)
+        self.clear_seq_btn.setEnabled(not self.is_running)
+        self.stop_btn.setEnabled(self.is_running)
+
 
 
 
@@ -577,7 +628,9 @@ class MyToolApplication(QWidget):
         self.start_backend_initialization()
         
     def init_ui(self):
-        self.setWindowTitle(f"{AppConfig.APP_NAME} v{AppConfig.APP_VERSION}"); self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle(f"{AppConfig.APP_NAME} v{AppConfig.APP_VERSION}")
+        self.setWindowIcon(QIcon(resource_path('icon/app-icon.png')))
+        self.setGeometry(100, 100, 1200, 800)
         self.setStyleSheet(''' QWidget { background-color: white; font-family: 'Microsoft YaHei'; } QTabWidget::pane { border: none; background: white; } QTabBar::tab { background: #f0f0f0; color: #333; padding: 14px 36px; margin-right: 4px; border-top-left-radius: 12px; border-top-right-radius: 12px; font-size: 18px; font-weight: bold; min-width: 120px; max-width: 300px; } QTabBar::tab:selected { background: #0078d4; color: white; } QTabBar::tab:hover { background: #e0e0e0; } QTabBar::tab:selected:hover { background: #0078d4; } ''')
         main_layout = QVBoxLayout()
         self.tab_widget = QTabWidget(); self.tab_widget.setStyleSheet("QTabWidget::pane { border: none; }")

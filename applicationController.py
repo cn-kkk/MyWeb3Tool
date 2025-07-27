@@ -127,54 +127,77 @@ class ApplicationController:
         log_util.info("控制器", f"线程池初始化完成，最大工作线程数={self.max_workers}。")
         log_util.info("控制器", "核心应用后端初始化完成。")
 
-    def _browser_worker(self, page_env: DrissionPageEnv, project_name: str, tasks: list[dict]):
-        log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始处理任务序列。")
+    def _browser_worker(self, page_env: DrissionPageEnv, sequence: list[dict]):
+        log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始处理包含 {len(sequence)} 个任务的任务序列。")
+        script_instances = {} # Cache for initialized script instances
         try:
-            project_info = next((p for p in self.projects if p["project_name"] == project_name), None)
-            if not project_info:
-                log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 未找到项目 '{project_name}'。")
-                return
-            project_class = project_info["class"]
-            script_instance = project_class(browser=page_env.browser, user_id=page_env.user_id)
-            for task_definition in tasks:
+            for task_definition in sequence:
                 if self.interrupt_event.is_set():
                     log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 检测到中断信号，任务序列已中止。")
                     break
-                task_name = task_definition.get("name")
-                repetitions = task_definition.get("repetitions", 1)
+
+                task_name = task_definition.get("task_name")
+                repetition = task_definition.get("repetition", 1)
+
                 if not task_name:
-                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'name' 键: {task_definition}")
+                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'task_name' 键: {task_definition}")
                     continue
+
+                # Infer project name from task name prefix
+                project_name_inferred = task_name.split('_task_')[0].capitalize()
+                project_info = next((p for p in self.projects if p["project_name"].lower() == project_name_inferred.lower()), None)
+
+                if not project_info:
+                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 无法从任务名 '{task_name}' 推断出有效项目。")
+                    continue
+
+                # Get or create script instance
+                if project_name_inferred not in script_instances:
+                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 首次遇到项目 '{project_name_inferred}'，正在初始化脚本...")
+                    project_class = project_info["class"]
+                    script_instances[project_name_inferred] = project_class(browser=page_env.browser, user_id=page_env.user_id)
+                
+                script_instance = script_instances[project_name_inferred]
                 task_method = getattr(script_instance, task_name, None)
+
                 if not (task_method and callable(task_method)):
-                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name}' 中未找到或无效的任务方法 '{task_name}'。")
+                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name_inferred}' 中未找到或无效的任务方法 '{task_name}'。")
                     continue
-                for i in range(repetitions):
+
+                for i in range(repetition):
                     if self.interrupt_event.is_set():
                         log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 检测到中断信号，任务 '{task_name}' 的剩余执行已取消。")
                         break
-                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始执行任务 '{task_name}' (第 {i+1}/{repetitions} 次)...")
+                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始执行任务 '{task_name}' (第 {i+1}/{repetition} 次)...")
                     task_method()
-                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' (第 {i+1}/{repetitions} 次) 成功完成。")
+                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' (第 {i+1}/{repetition} 次) 成功完成。")
+
             if not self.interrupt_event.is_set():
                 log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 所有任务已成功完成。")
         except Exception as e:
             log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 执行任务序列期间发生严重错误: {e}", exc_info=True)
 
-    def dispatch_tasks(self, project_name: str, tasks: list[dict]):
-        log_util.info("控制器", f"正在为项目 '{project_name}' 的所有浏览器分发任务序列: {tasks}。")
-        if not self.pages: log_util.warn("控制器", "没有可用的浏览器实例来分发任务。"); return
-        if not tasks: log_util.warn("控制器", "任务列表为空，无需分发。"); return
-        if not self.executor: log_util.error("控制器", "线程池未初始化，无法分发任务。"); return
+    def dispatch_sequence(self, sequence: list[dict]):
+        log_util.info("控制器", f"正在为所有浏览器分发任务序列，序列长度: {len(sequence)}。")
+        if not self.pages: 
+            log_util.warn("控制器", "没有可用的浏览器实例来分发任务。")
+            return
+        if not sequence:
+            log_util.warn("控制器", "任务序列为空，无需分发。")
+            return
+        if not self.executor: 
+            log_util.error("控制器", "线程池未初始化，无法分发任务。")
+            return
+
         self.interrupt_event.clear()
         page_chunks = [self.pages[i : i + self.max_workers] for i in range(0, len(self.pages), self.max_workers)]
         for i, chunk in enumerate(page_chunks):
             log_util.info("控制器", f"正在处理批次 {i+1}/{len(page_chunks)}，包含 {len(chunk)} 个浏览器。")
             self.arrange_windows_as_grid(chunk)
-            futures = [self.executor.submit(self._browser_worker, page_env, project_name, tasks) for page_env in chunk]
+            futures = [self.executor.submit(self._browser_worker, page_env, sequence) for page_env in chunk]
             wait(futures)
             log_util.info("控制器", f"批次 {i+1}/{len(page_chunks)} 已完成。")
-        log_util.info("控制器", f"项目 '{project_name}' 的任务序列 {tasks} 的所有批次已处理完毕。")
+        log_util.info("控制器", f"任务序列的所有批次已处理完毕。")
 
     def interrupt_tasks(self):
         log_util.info("控制器", "接收到中断信号，将通知所有线程停止后续任务...")

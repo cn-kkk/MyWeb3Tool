@@ -46,7 +46,7 @@ class OKXWalletUtil:
             wallet_page.wait.load_start()
 
             if self.EXTENSION_ID not in wallet_page.url:
-                log_util.warn("okx_wallet_util","未找到okx钱包页面。")
+                log_util.warn(user_id,"未找到okx钱包页面。")
                 return False
 
             # 循环处理，直到钱包页面关闭
@@ -101,7 +101,7 @@ class OKXWalletUtil:
             
             unlock_button = wallet_tab.ele('tag:button@type=submit')
             unlock_button.click()
-            
+            AntiSybilDpUtil.human_short_wait()
             if not wallet_tab.wait.ele_displayed('text:发送', timeout=10):
                  raise Exception("点击解锁后未能确认钱包已解锁。")
 
