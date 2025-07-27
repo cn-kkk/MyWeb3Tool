@@ -30,6 +30,11 @@ def get_windows_dpi_scaling():
         return 1.0
 
 
+import win32gui
+import win32con
+import win32process
+
+
 class ApplicationController:
     """
     应用程序后端控制器。
@@ -46,7 +51,6 @@ class ApplicationController:
         self.screen_width, self.screen_height = pyautogui.size()
         self.scale_factor = get_windows_dpi_scaling()
         log_util.info("控制器", f"检测到逻辑分辨率: {self.screen_width}x{self.screen_height}, DPI缩放比例: {self.scale_factor}")
-        log_util.info("控制器", "应用程序控制器初始化完成。")
 
     def discover_projects(self):
         log_util.info("控制器", "正在扫描项目脚本...")
@@ -85,7 +89,6 @@ class ApplicationController:
                                 log_util.info("控制器", f"发现项目: {project_name}")
                 except Exception as e:
                     log_util.error("控制器", f"加载项目脚本 {fname} 失败: {e}", exc_info=True)
-        log_util.info("控制器", f"项目扫描完成。共发现 {len(self.projects)} 个项目。")
 
     def get_all_drission_pages(self):
         log_util.info("控制器", "正在尝试连接所有运行中的浏览器实例...")
@@ -100,27 +103,73 @@ class ApplicationController:
 
     def arrange_windows_as_grid(self, page_envs_batch):
         log_util.info("控制器", f"正在以网格形式排列 {len(page_envs_batch)} 个窗口。")
-        logical_width = int(self.screen_width / self.scale_factor)
-        taskBar_height = 80
-        logical_height = int(self.screen_height / self.scale_factor) - taskBar_height
-        width = logical_width // 2 + 15
-        height = logical_height // 2
-        positions = [{"x": 0, "y": 0, "width": width, "height": height}, {"x": width, "y": 0, "width": width, "height": height}, {"x": 0, "y": height + 20, "width": width, "height": height}, {"x": width, "y": height + 20, "width": width, "height": height}]
+
+        # 直接计算win32gui需要的物理像素坐标
+        taskbar_physical_height = int(60 * self.scale_factor) # 任务栏高度
+        gap_physical_y = int(10 * self.scale_factor)
+        
+        width = int(self.screen_width // 2)
+        height = int((self.screen_height - taskbar_physical_height) // 2)
+
+        positions = [
+            {"x": 0, "y": 0, "width": width, "height": height},
+            {"x": width, "y": 0, "width": width, "height": height},
+            {"x": 0, "y": height + gap_physical_y, "width": width, "height": height},
+            {"x": width, "y": height + gap_physical_y, "width": width, "height": height}
+        ]
+
+        # 1. 获取所有可见窗口的句柄和标题
+        all_windows = []
+        def enum_windows_callback(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                if title:
+                    all_windows.append((hwnd, title))
+        win32gui.EnumWindows(enum_windows_callback, None)
+
+        # 2. 为每个浏览器实例寻找并排列窗口
+        used_hwnds = set()
+        last_valid_hwnd = None
         for i, page_env in enumerate(page_envs_batch):
-            if i < len(positions):
-                pos = positions[i]
-                try:
-                    target_page = page_env.browser.latest_tab
-                    window_setter = target_page.set.window
-                    window_setter.normal()
-                    time.sleep(0.5)
-                    window_setter.size(width=pos["width"], height=pos["height"])
-                    window_setter.location(x=pos["x"], y=pos["y"])
-                except Exception as e:
-                    log_util.error(page_env.user_id, f"为 user_id {page_env.user_id} 设置窗口边界失败: {e}")
+            if i >= len(positions): continue
+            pos = positions[i]
+            found_hwnd = None
+
+            try:
+                # 获取部分标题，例如 "109"
+                partial_title = page_env.browser.latest_tab.title
+                
+                # 遍历所有窗口，寻找最佳匹配
+                for hwnd, full_title in all_windows:
+                    if hwnd in used_hwnds: continue # 跳过已分配的窗口
+
+                    # 智能匹配：必须同时包含部分标题和浏览器关键字
+                    if partial_title in full_title and "SunBrowser" in full_title:
+                        found_hwnd = hwnd
+                        used_hwnds.add(hwnd) # 标记为已使用
+                        break # 找到后立即停止搜索
+
+                if found_hwnd:
+                    # 采用分步、强健的序列来确保窗口被正确恢复、移动和置顶
+                    win32gui.ShowWindow(found_hwnd, win32con.SW_SHOWNORMAL)
+                    time.sleep(0.1) # 缩短等待时间，因为我们只移动，不抢焦点
+                    win32gui.SetWindowPos(found_hwnd, win32con.HWND_TOPMOST, pos["x"], pos["y"], pos["width"], pos["height"], 0)
+                    win32gui.SetWindowPos(found_hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
+                    last_valid_hwnd = found_hwnd # 记录最后一个有效窗口
+                else:
+                    log_util.warn(page_env.user_id, f"未能通过智能匹配找到标题包含 '{partial_title}' 和 'SunBrowser' 的窗口，已跳过排列。")
+
+            except Exception as e:
+                log_util.error(page_env.user_id, f"排列窗口时发生错误: {e}")
+        
+        # 3. 在所有窗口排列完成后，只激活最后一个窗口
+        if last_valid_hwnd:
+            try:
+                win32gui.SetForegroundWindow(last_valid_hwnd)
+            except Exception as e:
+                log_util.error("控制器", f"激活最后一个窗口时出错: {e}")
 
     def initialize_app(self):
-        log_util.info("控制器", "核心应用后端初始化开始...")
         self.get_all_drission_pages()
         self.discover_projects()
         self.executor = ThreadPoolExecutor(max_workers=self.max_workers)

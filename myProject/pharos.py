@@ -47,10 +47,10 @@ class PharosScript:
             # self.page.set.window.max()
 
             # 步骤4: 人性化等待和交互
+            AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
             AntiSybilDpUtil.human_long_wait()
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             AntiSybilDpUtil.human_brief_wait()
-            AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
 
             # 步骤5: 连接钱包
             js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
@@ -100,7 +100,6 @@ class PharosScript:
                 self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 
             log_util.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
-            AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
         except Exception as e:
             log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
             raise
@@ -191,7 +190,9 @@ class PharosScript:
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
 
-            # 步骤5: 点击“Select token”按钮 (B Token)
+            # 步骤5: 模拟向下滚动，然后点击“Select token”按钮 (B Token)
+            swap_page.run_js("window.scrollTo(0, document.body.scrollHeight * 0.3);")
+            AntiSybilDpUtil.human_short_wait()
             select_token_btn = swap_page.ele(
                 'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]'
             ) # type: ignore
@@ -219,7 +220,8 @@ class PharosScript:
             AntiSybilDpUtil.human_brief_wait()
             amount_input.clear()
             AntiSybilDpUtil.human_brief_wait()
-            amount_input.input("0.005")
+            random_amount_str = AntiSybilDpUtil.get_perturbation_number(0.006, 0.001)
+            AntiSybilDpUtil.simulate_typing(swap_page, random_amount_str)
 
             # 步骤8: 等待兑换率计算完成
             swap_page.wait.load_start()
@@ -266,7 +268,8 @@ class PharosScript:
                 AntiSybilDpUtil.human_brief_wait()
                 amount_input.clear()
                 AntiSybilDpUtil.human_brief_wait()
-                amount_input.input("10")
+                random_amount_str = AntiSybilDpUtil.get_perturbation_number(10, 2)
+                AntiSybilDpUtil.simulate_typing(swap_page, random_amount_str)
 
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_long_wait()

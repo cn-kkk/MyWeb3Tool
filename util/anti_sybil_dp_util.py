@@ -12,6 +12,27 @@ class AntiSybilDpUtil:
     """
 
     @staticmethod
+    def get_perturbation_number(center_value: float, deviation_value: float) -> str:
+        """
+        生成一个在 [中心值-偏差, 中心值+偏差] 范围内的随机数，并格式化为字符串。
+        小数位数会比偏差值的小数位数多一位，以模拟真实世界的不精确输入。
+        """
+        # 1. 生成随机浮点数
+        random_value = random.uniform(center_value - deviation_value, center_value + deviation_value)
+
+        # 2. 自动计算所需的小数位数
+        deviation_str = str(deviation_value)
+        if '.' in deviation_str:
+            # 如果偏差值是小数，则精度为其小数位数+1
+            precision = len(deviation_str.split('.')[1]) + 1
+        else:
+            # 如果偏差值是整数，则精度为1
+            precision = 1
+        
+        # 3. 格式化并返回字符串
+        return f"{random_value:.{precision}f}"
+
+    @staticmethod
     def human_brief_wait():
         """
         1s内等待
@@ -75,21 +96,42 @@ class AntiSybilDpUtil:
     @staticmethod
     def simulate_random_click(page, user_id: str = "anti_sybil"):
         """
-        在页面视口的左上角区域内模拟一次随机点击。
+        在页面视口的左上角区域内模拟一次安全的随机点击。
+        该方法会检查目标坐标，避免点击到可交互的元素。
         """
         try:
             if not page:
                 log_util.warn(user_id, "simulate_random_click收到了一个空的page对象，已跳过。")
                 return
 
-            # 使用JS获取视口大小，这是最可靠的方法
+            # JS脚本，用于检查给定坐标的元素是否可交互
+            js_is_safe_to_click = """
+            const el = document.elementFromPoint(arguments[0], arguments[1]);
+            if (!el) return true; // 如果没有元素（例如，在文档之外），则认为是安全的
+            // 检查元素本身或其父级是否是常见的可交互标签
+            if (el.closest('a, button, input, select, [onclick]')) return false;
+            // 检查元素的鼠标样式是否为'pointer'
+            if (window.getComputedStyle(el).cursor === 'pointer') return false;
+            return true; // 所有检查都通过，是安全的
+            """
+
             width, height = page.run_js('return [window.innerWidth, window.innerHeight];')
-            x = random.randint(0, int(width * 0.15))
-            y = random.randint(int(height * 0.1), int(height * 0.2))
-            log_util.info(user_id, f"simulate_random_click: x坐标{x}, y坐标{y}")
-            page.actions.move_to(
-                (x, y), duration=random.uniform(0.2, 0.6)
-            ).click()
+
+            # 尝试最多5次以找到一个安全的点击位置
+            for i in range(5):
+                x = random.randint(0, int(width * 0.15))
+                y = random.randint(int(height * 0.1), int(height * 0.2))
+
+                # 调用JS进行安全检查
+                if page.run_js(js_is_safe_to_click, x, y):
+                    log_util.info(user_id, f"找到安全点击坐标 (尝试 {i+1}/5): x={x}, y={y}")
+                    page.actions.move_to(
+                        (x, y), duration=random.uniform(0.2, 0.6)
+                    ).click()
+                    return  # 成功点击后退出
+
+            log_util.warn(user_id, "尝试5次后未能找到安全的随机点击位置，已跳过本次点击。")
+
         except Exception as e:
             log_util.error(user_id, f"simulate_random_click时发生意外错误: {e}")
 
