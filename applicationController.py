@@ -187,7 +187,6 @@ class ApplicationController:
             log_util.info("控制器", "线程池已关闭。")
 
     def get_ip_configs(self):
-        log_util.info("控制器", "正在加载 SOCKS5 代理配置...")
         return Socks5Util().read_proxies()
 
     def save_ip_configs(self, configs):
@@ -195,7 +194,6 @@ class ApplicationController:
         return Socks5Util().save_socks5_config(configs)
 
     def get_wallet_configs(self):
-        log_util.info("控制器", "正在加载钱包配置...")
         return WalletUtil().read_wallets()
 
     def save_wallet_configs(self, configs):
@@ -203,7 +201,6 @@ class ApplicationController:
         return WalletUtil().save_wallet_config(configs)
 
     def get_browser_configs(self):
-        log_util.info("控制器", "正在加载浏览器配置...")
         if os.path.exists(AppConfig.BROWSER_CONFIG_FILE):
             try:
                 with open(AppConfig.BROWSER_CONFIG_FILE, "r", encoding="utf-8") as f:

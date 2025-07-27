@@ -36,7 +36,6 @@ class WalletUtil:
                     wallets.append(
                         Wallet(private_key=private_key.strip(), address=address.strip())
                     )
-            print(f"成功读取 {len(wallets)} 个钱包")
             return wallets
         except Exception as e:
             print(f"读取文件失败: {e}")

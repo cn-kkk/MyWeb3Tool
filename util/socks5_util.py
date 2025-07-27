@@ -56,7 +56,6 @@ class Socks5Util:
                     except Exception as e:
                         print(f"警告: 第{line_num}行解析失败: {line}, 错误: {e}")
             
-            print(f"成功读取 {len(proxies)} 个socks5代理")
             return proxies
             
         except Exception as e:
