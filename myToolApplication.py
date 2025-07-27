@@ -350,18 +350,22 @@ class SequenceItemWidget(QWidget):
 
     def init_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        
-        name_text = f"<span style='color: #888;'>[{self.project_name}]</span> <b>{self.task_name}</b> (执行 {self.count} 次)"
-        name_label = QLabel(name_text)
-        name_label.setWordWrap(True)
-        
+        layout.setContentsMargins(10, 5, 10, 5)
+
+        # Left-aligned task name
+        task_name_label = QLabel(f"<b>{self.task_name}</b>")
+        task_name_label.setStyleSheet("font-size: 25px;")
+        # Right-aligned count and remove button
+        count_label = QLabel(f"执行 {self.count} 次")
+        count_label.setStyleSheet("color: #555; font-size: 20px;")
+
         remove_btn = QPushButton("移除")
-        remove_btn.setStyleSheet("background-color: #e74c3c; color: white; border-radius: 4px; padding: 5px 10px;")
+        remove_btn.setStyleSheet("background-color: #e74c3c; color: white; border-radius: 4px; padding: 8px 16px; margin-left: 10px;")
         remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.list_item))
 
-        layout.addWidget(name_label)
+        layout.addWidget(task_name_label)
         layout.addStretch()
+        layout.addWidget(count_label)
         layout.addWidget(remove_btn)
 
     def get_sequence_data(self):
@@ -405,6 +409,7 @@ class ProjectTab(QWidget):
 
         self.sequence_list = QListWidget()
         self.sequence_list.setStyleSheet("QListWidget { border: 1px solid #ccc; border-radius: 8px; }")
+        self.sequence_list.setSpacing(8) # Add spacing between items
 
         # Action Buttons
         action_layout = QHBoxLayout()
@@ -476,7 +481,6 @@ class ProjectTab(QWidget):
             top_row_layout.addWidget(task_name_label)
             top_row_layout.addStretch()
 
-            # New execution count and add button
             count_input = QLineEdit("1")
             count_input.setFixedWidth(100)
             count_input.setValidator(QIntValidator(1, 99))
@@ -521,6 +525,16 @@ class ProjectTab(QWidget):
             return
 
         count = int(count_text)
+
+        # Check for existing task and remove it to overwrite
+        for i in range(self.sequence_list.count()):
+            item = self.sequence_list.item(i)
+            widget = self.sequence_list.itemWidget(item)
+            if widget and widget.project_name == project['project_name'] and widget.task_name == task['name']:
+                self.sequence_list.takeItem(i)
+                break # Found and removed, no need to continue loop
+
+        # Add the new or updated task
         list_item = QListWidgetItem(self.sequence_list)
         item_widget = SequenceItemWidget(project['project_name'], task['name'], count, list_item)
         item_widget.remove_requested.connect(self.remove_item_from_sequence)
@@ -551,6 +565,7 @@ class ProjectTab(QWidget):
         log_util.info("UI", f"校验通过：准备执行任务序列，共 {len(sequence_data)} 个任务。")
         details = "\n".join([f"- {item['project_name']}: {item['task_name']} (执行 {item['count']} 次)" for item in sequence_data])
         QMessageBox.information(self, "序列准备就绪", f"准备执行以下任务序列：\n\n{details}")
+
 
 
 class MyToolApplication(QWidget):
