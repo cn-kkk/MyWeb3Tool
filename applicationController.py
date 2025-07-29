@@ -8,6 +8,7 @@ import ctypes
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait
 from util.log_util import log_util
+from util.okx_wallet_util import OKXWalletUtil
 from config import AppConfig
 from util.ads_browser_util import AdsBrowserUtil, DrissionPageEnv
 from util.socks5_util import Socks5Util
@@ -178,7 +179,18 @@ class ApplicationController:
 
     def _browser_worker(self, page_env: DrissionPageEnv, sequence: list[dict]):
         log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始处理包含 {len(sequence)} 个任务的任务序列。")
-        script_instances = {} # Cache for initialized script instances
+        
+        # 线程级初始化：只执行一次的钱包解锁
+        try:
+            okx_util = OKXWalletUtil()
+            okx_util.open_and_unlock_drission(page_env.browser, page_env.user_id)
+            log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 钱包初始化解锁成功。")
+        except Exception as e:
+            log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 钱包初始化解锁失败，任务序列中止: {e}", exc_info=True)
+            return
+
+        # 项目级实例缓存，用于维护项目上下文
+        script_instances = {}
         try:
             for task_definition in sequence:
                 if self.interrupt_event.is_set():
@@ -192,7 +204,6 @@ class ApplicationController:
                     log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'task_name' 键: {task_definition}")
                     continue
 
-                # Infer project name from task name prefix
                 project_name_inferred = task_name.split('_task_')[0].capitalize()
                 project_info = next((p for p in self.projects if p["project_name"].lower() == project_name_inferred.lower()), None)
 
@@ -200,26 +211,39 @@ class ApplicationController:
                     log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 无法从任务名 '{task_name}' 推断出有效项目。")
                     continue
 
-                # Get or create script instance
+                # 项目级上下文管理：如果需要，则初始化新项目实例
                 if project_name_inferred not in script_instances:
-                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 首次遇到项目 '{project_name_inferred}'，正在初始化脚本...")
-                    project_class = project_info["class"]
-                    script_instances[project_name_inferred] = project_class(browser=page_env.browser, user_id=page_env.user_id)
+                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 切换到新项目 '{project_name_inferred}'，正在执行项目级初始化...")
+                    try:
+                        project_class = project_info["class"]
+                        # 创建并缓存项目实例
+                        script_instances[project_name_inferred] = project_class(browser=page_env.browser, user_id=page_env.user_id)
+                    except Exception as e:
+                        log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 项目 '{project_name_inferred}' 初始化失败，跳过该项目的所有后续任务: {e}", exc_info=True)
+                        # 将None放入缓存，防止后续任务重复尝试初始化失败的项目
+                        script_instances[project_name_inferred] = None
+                        continue
                 
-                script_instance = script_instances[project_name_inferred]
-                task_method = getattr(script_instance, task_name, None)
+                script_instance = script_instances.get(project_name_inferred)
+                if script_instance is None:
+                    # 如果项目初始化失败，则跳过其所有任务
+                    log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 因项目 '{project_name_inferred}' 初始化失败，跳过任务 '{task_name}'。")
+                    continue
 
+                task_method = getattr(script_instance, task_name, None)
                 if not (task_method and callable(task_method)):
                     log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name_inferred}' 中未找到或无效的任务方法 '{task_name}'。")
                     continue
 
+                # 任务级执行
                 for i in range(repetition):
                     if self.interrupt_event.is_set():
                         log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 检测到中断信号，任务 '{task_name}' 的剩余执行已取消。")
                         break
-                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始执行任务 '{task_name}' (第 {i+1}/{repetition} 次)...")
+
                     task_method()
                     log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' (第 {i+1}/{repetition} 次) 成功完成。")
+
 
             if not self.interrupt_event.is_set():
                 log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 所有任务已成功完成。")

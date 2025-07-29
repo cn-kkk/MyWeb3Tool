@@ -26,3 +26,5 @@ resource/*.txt
 
 #cline
 .cline_rules
+
+resource/

@@ -18,7 +18,9 @@ class PharosScript:
 
     def __init__(self, browser, user_id: str):
         """
-        初始化脚本，完成一系列准备工作。
+        项目级初始化。
+        此方法负责打开项目页面、连接钱包以及执行必要的初始交互。
+        假定钱包已在更高层级（Worker）被解锁。
         """
         self.browser = browser
         self.user_id = user_id
@@ -27,10 +29,7 @@ class PharosScript:
 
         log_util.info(self.user_id, f"开始初始化项目: {self.project_name}")
         try:
-            # 步骤1: 解锁钱包 (直接调用，失败时它会自己抛异常)
-            self.okx_util.open_and_unlock_drission(self.browser, self.user_id)
-
-            # 步骤2: 查找或创建项目标签页
+            # 步骤1: 查找或创建项目标签页
             try:
                 pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
             except Exception:
@@ -43,16 +42,13 @@ class PharosScript:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
             self.page.wait.load_start()
 
-            # 步骤3: 最大化窗口，只有测试脚本时解除注释
-            # self.page.set.window.max()
-
-            # 步骤4: 人性化等待和交互
+            # 步骤2: 人性化等待和交互（确保每个实例的随机性）
             AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
             AntiSybilDpUtil.human_long_wait()
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             AntiSybilDpUtil.human_brief_wait()
 
-            # 步骤5: 连接钱包
+            # 步骤3: 连接钱包
             js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
             if self.page.run_js(js_find_button):
                 self.page.ele('xpath://button[normalize-space()="Connect Wallet"]').click()
@@ -87,7 +83,7 @@ class PharosScript:
                 # 调用内部函数选择OKX钱包
                 _select_okx_wallet()
                 AntiSybilDpUtil.human_short_wait()
-                # 处理可选的"Continue"按钮，完全采纳用户提供的、最直接有效的JS方案
+                # 处理可选的"Continue"按钮
                 js_click_continue = """
                 const btn = document.querySelector('button.sc-fifgeu.donsIG');
                 if (btn && btn.textContent.trim() === 'Continue') {
