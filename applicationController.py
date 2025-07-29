@@ -6,6 +6,8 @@ import pyautogui
 import time
 import ctypes
 import threading
+import random
+import itertools
 from concurrent.futures import ThreadPoolExecutor, wait
 from util.log_util import log_util
 from util.okx_wallet_util import OKXWalletUtil
@@ -178,8 +180,7 @@ class ApplicationController:
         log_util.info("控制器", "核心应用后端初始化完成。")
 
     def _browser_worker(self, page_env: DrissionPageEnv, sequence: list[dict]):
-        log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始处理包含 {len(sequence)} 个任务的任务序列。")
-        
+
         # 线程级初始化：只执行一次的钱包解锁
         try:
             okx_util = OKXWalletUtil()
@@ -198,8 +199,6 @@ class ApplicationController:
                     break
 
                 task_name = task_definition.get("task_name")
-                repetition = task_definition.get("repetition", 1)
-
                 if not task_name:
                     log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'task_name' 键: {task_definition}")
                     continue
@@ -216,17 +215,14 @@ class ApplicationController:
                     log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 切换到新项目 '{project_name_inferred}'，正在执行项目级初始化...")
                     try:
                         project_class = project_info["class"]
-                        # 创建并缓存项目实例
                         script_instances[project_name_inferred] = project_class(browser=page_env.browser, user_id=page_env.user_id)
                     except Exception as e:
-                        log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 项目 '{project_name_inferred}' 初始化失败，跳过该项目的所有后续任务: {e}", exc_info=True)
-                        # 将None放入缓存，防止后续任务重复尝试初始化失败的项目
+                        log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 项目 '{project_name_inferred}' 初始化失败: {e}", exc_info=True)
                         script_instances[project_name_inferred] = None
                         continue
                 
                 script_instance = script_instances.get(project_name_inferred)
                 if script_instance is None:
-                    # 如果项目初始化失败，则跳过其所有任务
                     log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 因项目 '{project_name_inferred}' 初始化失败，跳过任务 '{task_name}'。")
                     continue
 
@@ -235,42 +231,111 @@ class ApplicationController:
                     log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name_inferred}' 中未找到或无效的任务方法 '{task_name}'。")
                     continue
 
-                # 任务级执行
-                for i in range(repetition):
-                    if self.interrupt_event.is_set():
-                        log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 检测到中断信号，任务 '{task_name}' 的剩余执行已取消。")
-                        break
-
+                # 任务级执行（无内部重复循环）
+                try:
+                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 开始执行任务 '{task_name}'...")
                     task_method()
-                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' (第 {i+1}/{repetition} 次) 成功完成。")
-
+                    log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 任务 '{task_name}' 成功完成。")
+                except Exception as e:
+                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 执行任务 '{task_name}' 时发生错误: {e}", exc_info=True)
 
             if not self.interrupt_event.is_set():
                 log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 所有任务已成功完成。")
         except Exception as e:
             log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 执行任务序列期间发生严重错误: {e}", exc_info=True)
 
+    def _generate_task_assignments(self, sequence: list[dict], num_browsers: int) -> list[list[dict]]:
+        """
+        为指定数量的浏览器生成最优的任务分配方案。
+        从任务序列中得到m种执行顺序，然后分配给n个浏览器；m>n时不会重复
+        """
+        # 1. 根据 repetition 展开原始任务列表
+        expanded_tasks = []
+        for task_def in sequence:
+            task_template = {k: v for k, v in task_def.items() if k != 'repetition'}
+            task_template['repetition'] = 1
+            expanded_tasks.extend([task_template] * task_def.get('repetition', 1))
+        
+        total_tasks = len(expanded_tasks)
+        if total_tasks <= 1:
+            return [expanded_tasks for _ in range(num_browsers)]
+
+        # 2. 安全检查：如果任务总数过多，则退回至简单随机化，避免性能问题
+        if total_tasks > 10: # 10! = 3,628,800，是一个合理的上限
+            log_util.warn("控制器", f"任务总数 ({total_tasks}) 超过10，为避免性能问题，将采用简单随机化（允许碰撞）。")
+            assignments = []
+            for _ in range(num_browsers):
+                shuffled_list = list(expanded_tasks)
+                random.shuffle(shuffled_list)
+                assignments.append(shuffled_list)
+            return assignments
+
+        # 3. 使用itertools.permutations生成所有唯一的排列组合
+        # 通过将dict转换为tuple来实现hashable，以便放入set中去重
+        task_tuples = [tuple(sorted(d.items())) for d in expanded_tasks]
+        all_unique_permutations_as_tuples = list(set(itertools.permutations(task_tuples)))
+        M = len(all_unique_permutations_as_tuples)
+        log_util.info("控制器", f"为任务序列生成了 {M} 种独特的执行顺序。")
+
+        # 4. 根据浏览器数量(N)和排列总数(M)决定分配策略
+        N = num_browsers
+        assignments_as_tuples = []
+        if M == 0: return [[] for _ in range(N)]
+
+        num_pools = N // M
+        remainder = N % M
+        
+        for _ in range(num_pools):
+            assignments_as_tuples.extend(all_unique_permutations_as_tuples)
+        
+        if remainder > 0:
+            assignments_as_tuples.extend(random.sample(all_unique_permutations_as_tuples, remainder))
+
+        # 5. 将元组转换回字典列表
+        assignments = [[dict(t) for t in p] for p in assignments_as_tuples]
+
+        # 6. 最终打乱，确保哪个浏览器拿到哪个序列是随机的
+        random.shuffle(assignments)
+        
+        log_util.info("控制器", f"已为 {N} 个浏览器生成了独一无二或近似独一无二的任务分配方案。")
+        return assignments
+
     def dispatch_sequence(self, sequence: list[dict]):
-        log_util.info("控制器", f"正在为所有浏览器分发任务序列，序列长度: {len(sequence)}。")
-        if not self.pages: 
+        log_util.info("控制器", f"接收到任务分发请求，序列长度: {len(sequence)}。")
+        if not self.pages:
             log_util.warn("控制器", "没有可用的浏览器实例来分发任务。")
             return
         if not sequence:
             log_util.warn("控制器", "任务序列为空，无需分发。")
             return
-        if not self.executor: 
+        if not self.executor:
             log_util.error("控制器", "线程池未初始化，无法分发任务。")
             return
 
         self.interrupt_event.clear()
-        page_chunks = [self.pages[i : i + self.max_workers] for i in range(0, len(self.pages), self.max_workers)]
+
+        # 1. 预先计算好所有浏览器的任务分配方案
+        task_assignments = self._generate_task_assignments(sequence, len(self.pages))
+
+        # 2. 按批次将任务分发给浏览器
+        page_chunks = [self.pages[i: i + self.max_workers] for i in range(0, len(self.pages), self.max_workers)]
+        
+        assignment_index = 0
         for i, chunk in enumerate(page_chunks):
-            log_util.info("控制器", f"正在处理批次 {i+1}/{len(page_chunks)}，包含 {len(chunk)} 个浏览器。")
+            log_util.info("控制器", f"正在处理批次 {i + 1}/{len(page_chunks)}，包含 {len(chunk)} 个浏览器。")
             self.arrange_windows_as_grid(chunk)
-            futures = [self.executor.submit(self._browser_worker, page_env, sequence) for page_env in chunk]
+
+            futures = []
+            for page_env in chunk:
+                if assignment_index < len(task_assignments):
+                    thread_sequence = task_assignments[assignment_index]
+                    future = self.executor.submit(self._browser_worker, page_env, thread_sequence)
+                    futures.append(future)
+                    assignment_index += 1
+            
             wait(futures)
-            log_util.info("控制器", f"批次 {i+1}/{len(page_chunks)} 已完成。")
-        log_util.info("控制器", f"任务序列的所有批次已处理完毕。")
+            log_util.info("控制器", f"批次 {i + 1}/{len(page_chunks)} 已完成。")
+        log_util.info("控制器", "任务序列的所有批次已处理完毕。")
 
     def interrupt_tasks(self):
         log_util.info("控制器", "接收到中断信号，将通知所有线程停止后续任务...")

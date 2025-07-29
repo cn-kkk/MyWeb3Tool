@@ -616,6 +616,19 @@ class ProjectTab(QWidget):
         self.clear_seq_btn.setEnabled(not self.is_running)
         self.stop_btn.setEnabled(self.is_running)
 
+    def on_stop_clicked(self):
+        """处理停止按钮点击事件，增加确认弹窗。"""
+        reply = QMessageBox.question(self, '确认停止',
+                                     "您确定要停止执行任务吗？\n\n此操作将终止所有未开始的任务。",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                                     QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            log_util.info("UI", "用户确认停止，正在向后端发送中断信号...")
+            app_controller.interrupt_tasks()
+        else:
+            log_util.info("UI", "用户取消了停止操作。")
+
 
 
 
