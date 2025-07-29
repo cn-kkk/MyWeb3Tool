@@ -47,7 +47,7 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             AntiSybilDpUtil.human_brief_wait()
-
+            AntiSybilDpUtil.simulate_mouse_move(self.page)
             # 步骤3: 连接钱包
             js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
             if self.page.run_js(js_find_button):
@@ -116,7 +116,6 @@ class PharosScript:
             # 步骤2: 如果找到按钮，则点击并刷新
             if checkin_btn and checkin_btn.states.is_displayed:
                 checkin_btn.click()
-                AntiSybilDpUtil.human_short_wait()
                 self.page.refresh()
                 self.page.wait.load_start()
 
@@ -161,7 +160,7 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
             swap_page.refresh()
             swap_page.wait.load_start()
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.human_brief_wait()
 
             # 步骤3: 检查是否钱包连接
             connected_button = swap_page.ele('xpath://button[@data-testid="web3-status-connected"]', timeout=5) # type: ignore
@@ -185,6 +184,7 @@ class PharosScript:
             # 步骤4: 等待代币数量加载
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.simulate_mouse_move(swap_page)
 
             # 步骤5: 模拟向下滚动，然后点击“Select token”按钮 (B Token)
             swap_page.run_js("window.scrollTo(0, document.body.scrollHeight * 0.3);")
@@ -245,10 +245,10 @@ class PharosScript:
                 log_util.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
                 return False
             AntiSybilDpUtil.human_huge_wait()
+            AntiSybilDpUtil.simulate_mouse_move(swap_page)
 
             # 步骤12: 等待网页执行swap，然后通过点击空白处关闭swap成功的弹窗
             AntiSybilDpUtil.simulate_random_click(swap_page, self.user_id)
-            AntiSybilDpUtil.human_short_wait()
             self.page.wait.load_start()
 
             # 步骤13: 点击对调按钮，然后将usdc换回PHRS，再次执行步骤7后面逻辑
@@ -303,6 +303,8 @@ class PharosScript:
             # 步骤1: 刷新并等待'Send'按钮
             self.page.refresh()
             self.page.wait.load_start()
+            AntiSybilDpUtil.human_brief_wait()
+            AntiSybilDpUtil.simulate_mouse_move(self.page)
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:
                 log_util.error(self.user_id, "发送代币任务失败：未找到'Send'按钮。")
@@ -312,7 +314,6 @@ class PharosScript:
             self.page.run_js("window.scrollTo(0, document.body.scrollHeight * 0.35);")
             AntiSybilDpUtil.human_short_wait()
             send_button.click()
-            AntiSybilDpUtil.human_short_wait()
 
             # 步骤3: 点击金额选项
             amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=15) # type: ignore
@@ -320,7 +321,6 @@ class PharosScript:
                 log_util.error(self.user_id, "发送代币任务失败：未找到'0.001PHRS'金额选项。")
                 return False
             amount_option.click()
-            AntiSybilDpUtil.human_short_wait()
 
             # 步骤4: 输入随机地址
             address_input = self.page.ele('xpath://input[@placeholder="Enter Address"]', timeout=10) # type: ignore

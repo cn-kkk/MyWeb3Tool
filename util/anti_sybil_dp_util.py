@@ -1,5 +1,6 @@
 import time
 import random
+import json
 
 from DrissionPage import ChromiumPage
 from util.log_util import log_util
@@ -83,12 +84,19 @@ class AntiSybilDpUtil:
         在页面内模拟几次无意义的鼠标移动。
         """
         try:
+            # 在执行任何操作前，先等待页面加载稳定
+            page.wait.load_start()
+            
+            # 使用JSON.stringify确保JS返回的是一个字符串，然后由Python的json库解析
+            size_str = page.run_js('return JSON.stringify([window.innerWidth, window.innerHeight]);')
+            width, height = json.loads(size_str)
+            
             for _ in range(random.randint(2, 4)):
-                x = random.randint(100, page.size[0] - 100)
-                y = random.randint(100, page.size[1] - 100)
-                page.actions.move_to(
-                    (x, y), duration=random.uniform(0.3, 0.8)
-                ).perform()
+                # 确保坐标在视口范围内，并留出边距
+                x = random.randint(100, width - 100 if width > 200 else width)
+                y = random.randint(100, height - 100 if height > 200 else height)
+                # DrissionPage的actions是即时执行的，不需要 .perform()
+                page.actions.move_to((x, y), duration=random.uniform(0.3, 0.8))
                 time.sleep(random.uniform(0.2, 0.5))
         except Exception as e:
             log_util.error("anti_sybil", f"simulate_mouse_move时发生意外错误: {e}")
