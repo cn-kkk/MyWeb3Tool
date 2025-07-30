@@ -8,8 +8,7 @@ from annotation.task_annotation import task_annotation
 
 class PharosScript:
     """
-    使用 DrissionPage 执行 Pharos 相关任务的脚本类。
-    该类负责调用工具类来完成具体操作。
+    Pharos项目的脚本类。
     """
 
     project_name = "Pharos"
@@ -29,7 +28,17 @@ class PharosScript:
 
         log_util.info(self.user_id, f"开始初始化项目: {self.project_name}")
         try:
-            # 步骤1: 查找或创建项目标签页
+            # 步骤1: 为浏览器实例注入反女巫检测脚本
+            page_for_cdp = self.browser.get_tab()
+            if not page_for_cdp:
+                page_for_cdp = self.browser.new_tab('about:blank')
+                AntiSybilDpUtil.patch_webdriver_fingerprint(page_for_cdp)
+                page_for_cdp.close()
+            else:
+                AntiSybilDpUtil.patch_webdriver_fingerprint(page_for_cdp)
+
+            # 步骤2: 打开PHAROS_URL页面
+            log_util.info(self.user_id, f"正在获取目标页面: {self.PHAROS_URL}")
             try:
                 pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
             except Exception:
@@ -42,13 +51,13 @@ class PharosScript:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
             self.page.wait.load_start()
 
-            # 步骤2: 人性化等待和交互（确保每个实例的随机性）
-            AntiSybilDpUtil.patch_webdriver_fingerprint(self.page)
+            # 步骤3: 人性化等待和交互
             AntiSybilDpUtil.human_long_wait()
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
-            # 步骤3: 连接钱包
+            
+            # 步骤4: 连接钱包
             js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
             if self.page.run_js(js_find_button):
                 self.page.ele('xpath://button[normalize-space()="Connect Wallet"]').click()
@@ -107,9 +116,16 @@ class PharosScript:
         """
         log_util.info(self.user_id, "开始执行签到任务...")
         try:
+            # 任务开始前，查找并切换到项目主页
+            pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
+            if not pharos_tab:
+                log_util.error(self.user_id, f"签到任务失败：未能找到项目 {self.project_name} 的页面。")
+                raise Exception(f"未能找到项目 {self.project_name} 的页面({self.PHAROS_URL})")
+            self.page = pharos_tab
+
             # 步骤1: 等待页面加载并查找 "Check in" 按钮
             self.page.wait.load_start()
-            checkin_btn = self.page.ele( # type: ignore
+            checkin_btn = self.page.ele(  # type: ignore
                 'xpath://button[contains(text(), "Check in")]', timeout=20
             )
 
@@ -120,7 +136,7 @@ class PharosScript:
                 self.page.wait.load_start()
 
             # 步骤3: 验证按钮状态是否变为 "Checked"
-            checked_btn = self.page.ele( # type: ignore
+            checked_btn = self.page.ele(  # type: ignore
                 'xpath://button[contains(text(), "Checked")]', timeout=10
             )
 
@@ -136,13 +152,13 @@ class PharosScript:
             # 如果超时，很可能意味着已经签到过了
             if "Timeout" in str(e):
                 # 再次检查是否已签到
-                checked_btn = self.page.ele( # type: ignore
+                checked_btn = self.page.ele(  # type: ignore
                     'xpath://button[contains(text(), "Checked")]', timeout=5
                 )
                 if checked_btn and checked_btn.states.is_displayed:
                     log_util.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
                     return True
-            
+
             log_util.error(self.user_id, f"签到任务执行期间发生意外错误: {e}")
             return False
 
@@ -300,6 +316,13 @@ class PharosScript:
         """
         log_util.info(self.user_id, "开始执行发送代币任务...")
         try:
+            # 任务开始前，查找并切换到项目主页
+            pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
+            if not pharos_tab:
+                log_util.error(self.user_id, f"发送代币任务失败：未能找到项目 {self.project_name} 的页面。")
+                raise Exception(f"未能找到项目 {self.project_name} 的页面({self.PHAROS_URL})")
+            self.page = pharos_tab
+
             # 步骤1: 刷新并等待'Send'按钮
             self.page.refresh()
             self.page.wait.load_start()
@@ -356,7 +379,6 @@ class PharosScript:
 
 if __name__ == "__main__":
     # 这个脚本现在是一个库，不应该被直接运行。
-    # 请运行 pharosScript_test.py 来进行测试。
     print(
         "PharosScript 定义完成。请在您的主程序中实例化，或通过 pharosScript_test.py 进行测试。"
     )
