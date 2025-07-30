@@ -1,6 +1,7 @@
 from datetime import datetime
 from util.anti_sybil_dp_util import AntiSybilDpUtil
 from util.log_util import log_util
+from annotation.task_annotation import task_annotation
 
 
 class WardenScript:
@@ -12,13 +13,14 @@ class WardenScript:
     WARDEN_URL = "https://app.wardenprotocol.org/earn"
     WARDEN_AI_CHAT_URL = "https://app.wardenprotocol.org/dashboard"
 
-    def __init__(self, browser, user_id: str):
+    def __init__(self, browser, user_id: str, window_height: int = 800):
         """
         项目级初始化。
         此方法负责打开项目页面并执行必要的初始交互。
         """
         self.browser = browser
         self.user_id = user_id
+        self.window_height = window_height
 
         log_util.info(self.user_id, f"任务开始: 初始化项目 {self.project_name}")
         try:
@@ -31,14 +33,15 @@ class WardenScript:
             else:
                 AntiSybilDpUtil.patch_webdriver_fingerprint(page_for_cdp)
 
-            # 步骤2: 打开或激活WARDEN_URL页面
-            try:
-                self.page = self.browser.get_tab(url=self.WARDEN_URL)
-                self.page.activate()
-            except Exception:
+            # 步骤2: 获取Warden主页的页面对象
+            tabs = self.browser.get_tabs(url=self.WARDEN_URL)
+            if tabs:
+                self.page = tabs[0]
+                self.page.refresh()
+            else:
                 self.page = self.browser.new_tab(self.WARDEN_URL)
 
-            # 步骤3: 等待页面加载完成
+            # 步骤3: 等待页面加载完成并执行人性化操作
             self.page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
@@ -50,21 +53,23 @@ class WardenScript:
             log_util.error(self.user_id, f"异常: 项目 '{self.project_name}' 初始化失败: {e}")
             raise
 
-
+    @task_annotation.once_per_day
     def warden_task_chat_with_ai(self):
         """
         与AI聊天任务：直接打开AI聊天页面，输入并发送消息。
         """
         log_util.info(self.user_id, f"任务开始: {self.project_name} - AI Chat")
+        chat_page = None
         try:
-            # 步骤1: 打开或激活AI聊天页面
-            try:
-                self.page = self.browser.get_tab(url=self.WARDEN_AI_CHAT_URL)
-                self.page.activate()
-            except Exception:
-                self.page = self.browser.new_tab(self.WARDEN_AI_CHAT_URL)
+            # 步骤1: 获取AI聊天页面的页面对象
+            tabs = self.browser.get_tabs(url=self.WARDEN_AI_CHAT_URL)
+            if tabs:
+                chat_page = tabs[0]
+                chat_page.refresh()
+            else:
+                chat_page = self.browser.new_tab(self.WARDEN_AI_CHAT_URL)
 
-            self.page.wait.load_start()
+            chat_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤2: 生成并输入消息
@@ -75,12 +80,12 @@ class WardenScript:
             log_util.info(self.user_id, f"准备输入消息: {message}")
 
             # 通过ID精确定位输入框并输入
-            input_box = self.page.ele('#chat', timeout=20)
+            input_box = chat_page.ele('#chat', timeout=20)
             input_box.input(message)
             AntiSybilDpUtil.human_brief_wait()
             
             # 模拟回车发送
-            self.page.actions.key_down('enter').key_up('enter')
+            chat_page.actions.key_down('enter').key_up('enter')
             AntiSybilDpUtil.human_long_wait()  # 等待AI响应
 
             log_util.info(self.user_id, f"任务成功: {self.project_name} - AI Chat")
@@ -89,33 +94,48 @@ class WardenScript:
         except Exception as e:
             log_util.error(self.user_id, f"异常: {self.project_name} - AI Chat 任务执行失败: {e}")
             return False
+        finally:
+            if chat_page and chat_page.tab_id in self.browser.tab_ids:
+                chat_page.close()
 
+    @task_annotation.once_per_day
     def warden_task_play_game(self):
         """
         玩游戏任务：进行赛车游戏。
         """
         log_util.info(self.user_id, f"任务开始: {self.project_name} - Play Game")
         try:
-            # 步骤1: 打开或激活Warden主页面
-            try:
-                self.page = self.browser.get_tab(url=self.WARDEN_URL)
-                self.page.activate()
-            except Exception:
+            # 步骤1: 获取Warden主页的页面对象
+            tabs = self.browser.get_tabs(url=self.WARDEN_URL)
+            if tabs:
+                self.page = tabs[0]
+                self.page.refresh()
+            else:
                 self.page = self.browser.new_tab(self.WARDEN_URL)
 
             self.page.wait.load_start()
             AntiSybilDpUtil.human_long_wait()
 
-            # 步骤2: 定位并点击游戏入口元素
-            game_entry_selector = 'div[class*="bg-[linear-gradient(to_bottom,rgba(0,0,0,0)_0%,rgba(0,0,0,0.4)_97%)]"]'
-            game_entry = self.page.ele(game_entry_selector, timeout=20)
+            # 步骤2: 滚动并点击游戏入口
+            print(self.window_height)
+            self.page.scroll.down(800)
+            AntiSybilDpUtil.human_short_wait()
+            game_entry = self.page.ele('text:HODL the Wheel', timeout=10)
 
             if game_entry:
-                log_util.info(self.user_id, "游戏入口已找到，正在点击。")
                 game_entry.click()
-                AntiSybilDpUtil.human_brief_wait()
+                AntiSybilDpUtil.human_short_wait()
             else:
-                raise Exception("未能找到游戏入口元素。")
+                raise Exception("未能找到'HODL the Wheel'游戏入口元素。")
+
+            # 步骤3: 点击“START GAME”按钮
+            AntiSybilDpUtil.human_short_wait()
+            start_game_btn = self.page.ele('text:START GAME', timeout=10)
+            if start_game_btn:
+                start_game_btn.click()
+                AntiSybilDpUtil.human_short_wait()
+            else:
+                raise Exception("未能找到'START GAME'按钮。")
 
             log_util.info(self.user_id, f"任务成功: {self.project_name} - Play Game")
             return True

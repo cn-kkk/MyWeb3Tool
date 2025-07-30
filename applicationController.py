@@ -53,6 +53,7 @@ class ApplicationController:
         self.interrupt_event = threading.Event()
         self.screen_width, self.screen_height = pyautogui.size()
         self.scale_factor = get_windows_dpi_scaling()
+        self.window_height = 0
         log_util.info("控制器", f"检测到逻辑分辨率: {self.screen_width}x{self.screen_height}, DPI缩放比例: {self.scale_factor}")
 
     def discover_projects(self):
@@ -112,13 +113,13 @@ class ApplicationController:
         gap_physical_y = int(10 * self.scale_factor)
         
         width = int(self.screen_width // 2)
-        height = int((self.screen_height - taskbar_physical_height) // 2)
+        self.window_height = int((self.screen_height - taskbar_physical_height) // 2)
 
         positions = [
-            {"x": 0, "y": 0, "width": width, "height": height},
-            {"x": width, "y": 0, "width": width, "height": height},
-            {"x": 0, "y": height + gap_physical_y, "width": width, "height": height},
-            {"x": width, "y": height + gap_physical_y, "width": width, "height": height}
+            {"x": 0, "y": 0, "width": width, "height": self.window_height},
+            {"x": width, "y": 0, "width": width, "height": self.window_height},
+            {"x": 0, "y": self.window_height + gap_physical_y, "width": width, "height": self.window_height},
+            {"x": width, "y": self.window_height + gap_physical_y, "width": width, "height": self.window_height}
         ]
 
         # 1. 获取所有可见窗口的句柄和标题
@@ -215,9 +216,9 @@ class ApplicationController:
                     log_util.info(page_env.user_id, f"[线程-{page_env.user_id}] 切换到新项目 '{project_name_inferred}'，正在执行项目级初始化...")
                     try:
                         project_class = project_info["class"]
-                        script_instances[project_name_inferred] = project_class(browser=page_env.browser, user_id=page_env.user_id)
+                        script_instances[project_name_inferred] = project_class(browser=page_env.browser, user_id=page_env.user_id, window_height=self.window_height)
                     except Exception as e:
-                        log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 项目 '{project_name_inferred}' 初始化失败: {e}", exc_info=True)
+                        log_util.error(page_env.user_id, f"[线程-{page_name_inferred}] 项目 '{project_name_inferred}' 初始化失败: {e}", exc_info=True)
                         script_instances[project_name_inferred] = None
                         continue
                 

@@ -15,7 +15,7 @@ class PharosScript:
     PHAROS_URL = "https://testnet.pharosnetwork.xyz/experience"
     SWAP_URL = "https://testnet.zenithfinance.xyz/swap"
 
-    def __init__(self, browser, user_id: str):
+    def __init__(self, browser, user_id: str, window_height: int = 800):
         """
         项目级初始化。
         此方法负责打开项目页面、连接钱包以及执行必要的初始交互。
@@ -25,6 +25,7 @@ class PharosScript:
         self.user_id = user_id
         self.okx_util = OKXWalletUtil()
         self.wallet_util = WalletUtil()
+        self.window_height = window_height
 
         log_util.info(self.user_id, f"开始初始化项目: {self.project_name}")
         try:
@@ -37,15 +38,10 @@ class PharosScript:
             else:
                 AntiSybilDpUtil.patch_webdriver_fingerprint(page_for_cdp)
 
-            # 步骤2: 打开PHAROS_URL页面
-            log_util.info(self.user_id, f"正在获取目标页面: {self.PHAROS_URL}")
-            try:
-                pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
-            except Exception:
-                pharos_tab = None
-
-            if pharos_tab:
-                self.page = pharos_tab
+            # 步骤2: 获取Pharos主页的页面对象
+            tabs = self.browser.get_tabs(url=self.PHAROS_URL)
+            if tabs:
+                self.page = tabs[0]
                 self.page.refresh()
             else:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
@@ -116,12 +112,14 @@ class PharosScript:
         """
         log_util.info(self.user_id, "开始执行签到任务...")
         try:
-            # 任务开始前，查找并切换到项目主页
-            pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
-            if not pharos_tab:
+            # 任务开始前，获取Pharos主页的页面对象
+            tabs = self.browser.get_tabs(url=self.PHAROS_URL)
+            if tabs:
+                self.page = tabs[0]
+                self.page.refresh()
+            else:
                 log_util.error(self.user_id, f"签到任务失败：未能找到项目 {self.project_name} 的页面。")
                 raise Exception(f"未能找到项目 {self.project_name} 的页面({self.PHAROS_URL})")
-            self.page = pharos_tab
 
             # 步骤1: 等待页面加载并查找 "Check in" 按钮
             self.page.wait.load_start()
@@ -316,15 +314,16 @@ class PharosScript:
         """
         log_util.info(self.user_id, "开始执行发送代币任务...")
         try:
-            # 任务开始前，查找并切换到项目主页
-            pharos_tab = self.browser.get_tab(url=self.PHAROS_URL)
-            if not pharos_tab:
+            # 任务开始前，获取Pharos主页的页面对象
+            tabs = self.browser.get_tabs(url=self.PHAROS_URL)
+            if tabs:
+                self.page = tabs[0]
+                self.page.refresh()
+            else:
                 log_util.error(self.user_id, f"发送代币任务失败：未能找到项目 {self.project_name} 的页面。")
                 raise Exception(f"未能找到项目 {self.project_name} 的页面({self.PHAROS_URL})")
-            self.page = pharos_tab
 
             # 步骤1: 刷新并等待'Send'按钮
-            self.page.refresh()
             self.page.wait.load_start()
             AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
