@@ -91,7 +91,7 @@ class AntiSybilDpUtil:
             size_str = page.run_js('return JSON.stringify([window.innerWidth, window.innerHeight]);')
             width, height = json.loads(size_str)
             
-            for _ in range(random.randint(2, 4)):
+            for _ in range(random.randint(1, 3)):
                 # 确保坐标在视口范围内，并留出边距
                 x = random.randint(100, width - 100 if width > 200 else width)
                 y = random.randint(100, height - 100 if height > 200 else height)
@@ -146,8 +146,8 @@ class AntiSybilDpUtil:
     @staticmethod
     def simulate_typing(page: ChromiumPage, text: str, user_id: str = "anti_sybil"):
         """
-        模拟真人输入：在当前光标位置逐字输入，并增加随机停顿。
-        有小概率会先输入一遍，然后删除，再重新输入，以模拟更真实的用户行为。
+        模拟真人输入：在当前光标位置逐字输入，并增加随机退格重输和停顿。
+        只能输入键盘有的按键，中文不行。
         """
         try:
             def _type_text_by_char(p, t):
