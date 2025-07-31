@@ -42,6 +42,7 @@ class PharosScript:
             tabs = self.browser.get_tabs(url=self.PHAROS_URL)
             if tabs:
                 self.page = tabs[0]
+                self.page.set.activate()
                 self.page.refresh()
             else:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
@@ -112,17 +113,18 @@ class PharosScript:
         """
         log_util.info(self.user_id, "开始执行签到任务...")
         try:
-            # 任务开始前，获取Pharos主页的页面对象
+            # 任务开始前，获取或导航到Pharos主页
             tabs = self.browser.get_tabs(url=self.PHAROS_URL)
             if tabs:
                 self.page = tabs[0]
+                self.page.set.activate()
                 self.page.refresh()
             else:
-                log_util.error(self.user_id, f"签到任务失败：未能找到项目 {self.project_name} 的页面。")
-                raise Exception(f"未能找到项目 {self.project_name} 的页面({self.PHAROS_URL})")
+                self.page = self.browser.new_tab(self.PHAROS_URL)
 
             # 步骤1: 等待页面加载并查找 "Check in" 按钮
-            self.page.wait.load_start()
+            self.page.wait.doc_loaded()
+            AntiSybilDpUtil.human_short_wait()
             checkin_btn = self.page.ele(  # type: ignore
                 'xpath://button[contains(text(), "Check in")]', timeout=20
             )
@@ -196,12 +198,12 @@ class PharosScript:
                     return False
 
             # 步骤4: 等待代币数量加载
-            swap_page.wait.load_start()
+            swap_page.wait.doc_loaded()
             AntiSybilDpUtil.human_short_wait()
             AntiSybilDpUtil.simulate_mouse_move(swap_page)
 
             # 步骤5: 模拟向下滚动，然后点击“Select token”按钮 (B Token)
-            swap_page.run_js("window.scrollTo(0, document.body.scrollHeight * 0.3);")
+            swap_page.scroll.down(300)
             AntiSybilDpUtil.human_short_wait()
             select_token_btn = swap_page.ele(
                 'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]'
@@ -234,7 +236,7 @@ class PharosScript:
             AntiSybilDpUtil.simulate_typing(swap_page, random_amount_str)
 
             # 步骤8: 等待兑换率计算完成
-            swap_page.wait.load_start()
+            swap_page.wait.doc_loaded()
             AntiSybilDpUtil.human_long_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
@@ -263,7 +265,7 @@ class PharosScript:
 
             # 步骤12: 等待网页执行swap，然后通过点击空白处关闭swap成功的弹窗
             AntiSybilDpUtil.simulate_random_click(swap_page, self.user_id)
-            self.page.wait.load_start()
+            self.page.wait.doc_loaded()
 
             # 步骤13: 点击对调按钮，然后将usdc换回PHRS，再次执行步骤7后面逻辑
             swap_currency_button = swap_page.ele('xpath://div[@data-testid="swap-currency-button"]')
@@ -281,7 +283,7 @@ class PharosScript:
                 random_amount_str = AntiSybilDpUtil.get_perturbation_number(10, 2)
                 AntiSybilDpUtil.simulate_typing(swap_page, random_amount_str)
 
-            swap_page.wait.load_start()
+            swap_page.wait.doc_loaded()
             AntiSybilDpUtil.human_long_wait()
 
             swap_btn.click()
@@ -314,18 +316,18 @@ class PharosScript:
         """
         log_util.info(self.user_id, "开始执行发送代币任务...")
         try:
-            # 任务开始前，获取Pharos主页的页面对象
+            # 任务开始前，获取或导航到Pharos主页
             tabs = self.browser.get_tabs(url=self.PHAROS_URL)
             if tabs:
                 self.page = tabs[0]
+                self.page.set.activate()
                 self.page.refresh()
             else:
-                log_util.error(self.user_id, f"发送代币任务失败：未能找到项目 {self.project_name} 的页面。")
-                raise Exception(f"未能找到项目 {self.project_name} 的页面({self.PHAROS_URL})")
+                self.page = self.browser.new_tab(self.PHAROS_URL)
 
-            # 步骤1: 刷新并等待'Send'按钮
-            self.page.wait.load_start()
-            AntiSybilDpUtil.human_brief_wait()
+            # 步骤1: 等待页面加载完成并查找'Send'按钮
+            self.page.wait.doc_loaded()
+            AntiSybilDpUtil.human_short_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:

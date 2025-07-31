@@ -1,3 +1,5 @@
+import random
+import time
 from datetime import datetime
 from util.anti_sybil_dp_util import AntiSybilDpUtil
 from util.log_util import log_util
@@ -37,6 +39,7 @@ class WardenScript:
             tabs = self.browser.get_tabs(url=self.WARDEN_URL)
             if tabs:
                 self.page = tabs[0]
+                self.page.set.activate()
                 self.page.refresh()
             else:
                 self.page = self.browser.new_tab(self.WARDEN_URL)
@@ -65,6 +68,7 @@ class WardenScript:
             tabs = self.browser.get_tabs(url=self.WARDEN_AI_CHAT_URL)
             if tabs:
                 chat_page = tabs[0]
+                chat_page.set.activate()
                 chat_page.refresh()
             else:
                 chat_page = self.browser.new_tab(self.WARDEN_AI_CHAT_URL)
@@ -109,6 +113,7 @@ class WardenScript:
             tabs = self.browser.get_tabs(url=self.WARDEN_URL)
             if tabs:
                 self.page = tabs[0]
+                self.page.set.activate()
                 self.page.refresh()
             else:
                 self.page = self.browser.new_tab(self.WARDEN_URL)
@@ -117,7 +122,6 @@ class WardenScript:
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤2: 滚动并点击游戏入口
-            print(self.window_height)
             self.page.scroll.down(800)
             AntiSybilDpUtil.human_short_wait()
             game_entry = self.page.ele('text:HODL the Wheel', timeout=10)
@@ -137,6 +141,14 @@ class WardenScript:
             else:
                 raise Exception("未能找到'START GAME'按钮。")
 
+            # 步骤4: 玩游戏
+            for _ in range(10):
+                key = random.choice(['a', 'd'])
+                self.page.actions.key_down(key).key_up(key)
+                time.sleep(1)
+
+            time.sleep(80)
+            self.page.refresh()
             log_util.info(self.user_id, f"任务成功: {self.project_name} - Play Game")
             return True
 
