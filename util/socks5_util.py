@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from typing import List, Dict
 from config import AppConfig
 
+from util.log_util import log_util
+
 # socks5ip的实体类
 @dataclass
 class Socks5Proxy:
@@ -23,7 +25,7 @@ class Socks5Util:
         proxies = []
         
         if not os.path.exists(self.file_path):
-            print(f"警告: 文件 {self.file_path} 不存在")
+            log_util.warn("Socks5Util", f"配置文件 {self.file_path} 不存在。请在exe同目录下创建resource文件夹并添加该文件。")
             return proxies
         
         try:

@@ -81,7 +81,7 @@ class AdsBrowserUtil:
                     if uid:
                         user_ids.append(uid)
         else:
-            log_util.error("System", f"Browser config file not found: {browser_config_file}")
+            log_util.error("AdsBrowserUtil", f"配置文件 {browser_config_file} 不存在。请在exe同目录下创建resource文件夹并添加该文件。")
             return []
 
         if not user_ids:

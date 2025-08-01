@@ -3,6 +3,7 @@ import secrets
 from dataclasses import dataclass
 from typing import List, Dict
 from config import AppConfig
+from util.log_util import log_util
 from eth_account import Account
 
 
@@ -20,7 +21,7 @@ class WalletUtil:
     def read_wallets(self) -> List[Wallet]:
         wallets = []
         if not os.path.exists(self.file_path):
-            print(f"警告: 文件 {self.file_path} 不存在")
+            log_util.warn("WalletUtil", f"配置文件 {self.file_path} 不存在。请在exe同目录下创建resource文件夹并添加该文件。")
             return wallets
         try:
             with open(self.file_path, "r", encoding="utf-8") as file:

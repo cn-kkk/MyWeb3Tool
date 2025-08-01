@@ -8,6 +8,7 @@ import ctypes
 import threading
 import random
 import itertools
+from annotation.task_annotation import task_annotation
 from concurrent.futures import ThreadPoolExecutor, wait
 from util.log_util import log_util
 from util.okx_wallet_util import OKXWalletUtil
