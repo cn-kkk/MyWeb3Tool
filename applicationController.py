@@ -59,7 +59,7 @@ class ApplicationController:
     def discover_projects(self):
         log_util.info("控制器", "正在扫描项目脚本...")
         self.projects = []
-        project_dir = os.path.join(os.getcwd(), "myProject")
+        project_dir = AppConfig.MY_PROJECT_DIR
         if not os.path.exists(project_dir):
             log_util.warn("控制器", f"项目目录 '{project_dir}' 不存在，将不会加载任何项目。")
             return

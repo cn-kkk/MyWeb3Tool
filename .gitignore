@@ -28,3 +28,5 @@ resource/*.txt
 .cline_rules
 
 resource/
+
+dist/

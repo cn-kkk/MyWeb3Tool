@@ -39,16 +39,7 @@ class BackendInitializationThread(QThread):
             log_util.error("Backend", f"Backend initialization failed: {e}", exc_info=True)
             self.initialization_done.emit(False, str(e))
 
-def resource_path(relative_path):
-    try:
-        if hasattr(sys, '_MEIPASS'):
-            base_path = sys._MEIPASS
-        else:
-            base_path = os.path.abspath(".")
-        return os.path.join(base_path, relative_path)
-    except Exception as e:
-        print(f"resource_path error for {relative_path}: {e}")
-        return relative_path
+
 
 class LogWidget(QTextEdit):
     """日志显示组件，只负责显示从回调函数传递过来的日志。"""
@@ -300,7 +291,7 @@ class HomeTab(QWidget):
 
     def load_readme(self):
         try:
-            readme_path = resource_path('README.md')
+            readme_path = os.path.join(AppConfig.BASE_DIR, 'README.md')
             with open(readme_path, 'r', encoding='utf-8') as f: md_text = f.read()
             css = """<style> body { font-family: 'Microsoft YaHei'; font-size: 16px; line-height: 1.6; } h1 { font-size: 28px; color: #0078d4; border-bottom: 2px solid #0078d4; padding-bottom: 10px; } h2 { font-size: 24px; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 20px;} h3 { font-size: 20px; } code { font-family: 'Consolas', 'Courier New', monospace; background-color: #f0f0f0; padding: 2px 4px; border-radius: 4px; } pre { background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; padding: 10px; white-space: pre-wrap; word-wrap: break-word; } pre > code { background-color: transparent; padding: 0; } ul, ol { padding-left: 20px; } </style>"""
             html = markdown.markdown(md_text, extensions=['fenced_code', 'tables'])
@@ -642,7 +633,7 @@ class MyToolApplication(QWidget):
         
     def init_ui(self):
         self.setWindowTitle(f"{AppConfig.APP_NAME} v{AppConfig.APP_VERSION}")
-        self.setWindowIcon(QIcon(resource_path('icon/app-icon.png')))
+        self.setWindowIcon(QIcon(os.path.join(AppConfig.BASE_DIR, 'icon', 'app-icon.png')))
         self.setGeometry(100, 100, 1200, 800)
         self.setStyleSheet(''' QWidget { background-color: white; font-family: 'Microsoft YaHei'; } QTabWidget::pane { border: none; background: white; } QTabBar::tab { background: #f0f0f0; color: #333; padding: 14px 36px; margin-right: 4px; border-top-left-radius: 12px; border-top-right-radius: 12px; font-size: 18px; font-weight: bold; min-width: 120px; max-width: 300px; } QTabBar::tab:selected { background: #0078d4; color: white; } QTabBar::tab:hover { background: #e0e0e0; } QTabBar::tab:selected:hover { background: #0078d4; } ''')
         main_layout = QVBoxLayout()
