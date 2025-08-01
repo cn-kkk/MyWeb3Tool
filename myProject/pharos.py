@@ -124,8 +124,8 @@ class PharosScript:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
 
             # 步骤1: 等待页面加载并查找 "Check in" 按钮
-            self.page.wait.doc_loaded()
             AntiSybilDpUtil.human_short_wait()
+            self.page.wait.doc_loaded()
             checkin_btn = self.page.ele(  # type: ignore
                 'xpath://button[contains(text(), "Check in")]', timeout=20
             )
@@ -133,6 +133,7 @@ class PharosScript:
             # 步骤2: 如果找到按钮，则点击并刷新
             if checkin_btn and checkin_btn.states.is_displayed:
                 checkin_btn.click()
+                AntiSybilDpUtil.human_short_wait()
                 self.page.refresh()
                 self.page.wait.load_start()
 

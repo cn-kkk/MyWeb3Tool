@@ -1,6 +1,10 @@
 import os
 import importlib.util
+from time import sleep
 
+import win32gui
+import win32con
+import win32process
 import inspect
 import pyautogui
 import time
@@ -32,11 +36,6 @@ def get_windows_dpi_scaling():
         return dpi_x / 96.0
     except Exception:
         return 1.0
-
-
-import win32gui
-import win32con
-import win32process
 
 
 class ApplicationController:
@@ -324,8 +323,21 @@ class ApplicationController:
         
         assignment_index = 0
         for i, chunk in enumerate(page_chunks):
-            log_util.info("控制器", f"正在处理批次 {i + 1}/{len(page_chunks)}，包含 {len(chunk)} 个浏览器。")
+            sleep(0.2)
             self.arrange_windows_as_grid(chunk)
+
+            for page_env in chunk:
+                try:
+                    time.sleep(0.2)
+                    
+                    browser = page_env.browser
+                    tabs = browser.get_tabs()
+                    for tab in tabs[1:]:
+                        tab.close()
+                    time.sleep(0.2)
+
+                except Exception as e:
+                    log_util.error(page_env.user_id, f"清理标签页时出错: {e}", exc_info=True)
 
             futures = []
             for page_env in chunk:
@@ -381,6 +393,9 @@ class ApplicationController:
             lines = content.strip().split("\n")
             if len(lines) >= 1 and not lines[0].strip().startswith(AppConfig.API_URL_VALID_PREFIXES):
                 log_util.warn("控制器", "浏览器配置已保存，但API URL格式似乎不正确。")
+            sleep(0.1)
+            # 刷新浏览器
+            self.get_all_drission_pages()
             return True
         except Exception as e:
             log_util.error("控制器", f"保存浏览器配置失败: {e}", exc_info=True)
