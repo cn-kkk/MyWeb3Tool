@@ -103,17 +103,22 @@ class OKXWalletUtil:
                 return
 
             password_input = wallet_tab.ele('tag:input@type=password', timeout=15)
-            password_input.input(self.PASSWORD)
-            AntiSybilDpUtil.human_short_wait()
-            
-            unlock_button = wallet_tab.ele('tag:button@type=submit')
-            unlock_button.click()
-            AntiSybilDpUtil.human_short_wait()
+            if password_input:
+                password_input.input(self.PASSWORD)
+                AntiSybilDpUtil.human_short_wait()
+                unlock_button = wallet_tab.ele('tag:button@type=submit')
+                unlock_button.click()
+                AntiSybilDpUtil.human_short_wait()
 
             # 解锁后，检查并处理可能出现的“取消交易”弹窗
             cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=2)
             if cancel_tx_button and cancel_tx_button.states.is_clickable:
                 cancel_tx_button.click()
+                AntiSybilDpUtil.human_short_wait()
+
+            cancel_button = wallet_tab.ele('text:取消', timeout=2)
+            if cancel_button and cancel_tx_button.states.is_clickable:
+                cancel_button.click()
                 AntiSybilDpUtil.human_short_wait()
 
             if not wallet_tab.wait.ele_displayed('text:发送', timeout=10):

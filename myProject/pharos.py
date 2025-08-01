@@ -4,7 +4,7 @@ from util.anti_sybil_dp_util import AntiSybilDpUtil
 from util.log_util import log_util
 from util.wallet_util import WalletUtil
 from annotation.task_annotation import task_annotation
-
+from datetime import datetime
 
 class PharosScript:
     """
@@ -14,6 +14,7 @@ class PharosScript:
     project_name = "Pharos"
     PHAROS_URL = "https://testnet.pharosnetwork.xyz/experience"
     SWAP_URL = "https://testnet.zenithfinance.xyz/swap"
+    NAME_URL = "https://test.pharosname.com/"
 
     def __init__(self, browser, user_id: str, window_height: int = 800):
         """
@@ -375,6 +376,70 @@ class PharosScript:
 
         except Exception as e:
             log_util.error(self.user_id, f"发送代币任务执行时发生意外错误: {e}")
+            return False
+
+    def pharos_task_buy_web3_name(self):
+        """
+        购买Pharos的Web3用户名。
+        """
+        log_util.info(self.user_id, "开始执行购买Web3用户名任务...")
+        try:
+            # 步骤1: 获取或打开NAME_URL页面
+            tabs = self.browser.get_tabs(url=self.NAME_URL)
+            if tabs:
+                name_page = tabs[0]
+                name_page.set.activate()
+                name_page.refresh()
+            else:
+                name_page = self.browser.new_tab(self.NAME_URL)
+            
+            name_page.wait.load_start()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤2: 确保钱包已连接
+            profile_element = name_page.s_ele('xpath://div[@data-testid="header-profile"]', timeout=5)
+            if not profile_element:
+                log_util.info(self.user_id, "钱包未连接，开始连接流程...")
+                connect_btn = name_page.ele('text:连接', timeout=10)
+                if connect_btn:
+                    connect_btn.click()
+                    AntiSybilDpUtil.human_short_wait()
+                    self.okx_util.click_OKX_in_selector(self.browser, name_page, self.user_id)
+                    AntiSybilDpUtil.human_short_wait()
+            
+            # 步骤3: 循环查找可用用户名并注册
+            name_page.scroll.down(80)
+            name_input = name_page.wait.ele_displayed('xpath://input[@id="thorin2"]', timeout=10)
+            today = datetime.now()
+            weekday = today.isoweekday()
+
+            for i in range(5):  # 最多尝试5次
+                # 生成并输入新名称
+                user_name = WalletUtil.get_a_random_word() + str(weekday) + ".phrs"
+                log_util.info(self.user_id, f"第 {i + 1} 次尝试，使用名称: {user_name}")
+                name_input.clear()
+                AntiSybilDpUtil.simulate_typing(name_page, user_name, self.user_id)
+                AntiSybilDpUtil.human_long_wait()
+
+                # 等待异步验证结果
+                unavailable_notice = name_page.s_ele('text:不可用', timeout=10)
+                if unavailable_notice:
+                    log_util.warn(self.user_id, f"名称 '{user_name}' 不可用，继续尝试...")
+                    continue  # 名称不可用，直接开始下一次循环
+
+                available_button = name_page.s_ele('text:可注册', timeout=10)
+                if available_button:
+                    log_util.info(self.user_id, f"名称 '{user_name}' 可用，点击注册。")
+                    available_button.click()
+                    AntiSybilDpUtil.human_long_wait()
+                    break
+
+            name_page.close()
+            log_util.info(self.user_id, "—————— 购买Web3用户名任务等待后续开发 ——————")
+            return True
+
+        except Exception as e:
+            log_util.error(self.user_id, f"购买Web3用户名任务执行时发生意外错误: {e}")
             return False
 
 

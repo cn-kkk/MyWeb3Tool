@@ -1,7 +1,11 @@
 import os
+import random
 import secrets
 from dataclasses import dataclass
 from typing import List, Dict
+
+from eth_account.hdaccount.mnemonic import Mnemonic
+
 from config import AppConfig
 from util.log_util import log_util
 from eth_account import Account
@@ -65,3 +69,14 @@ class WalletUtil:
         private_key = "0x" + secrets.token_hex(32)
         account = Account.from_key(private_key)
         return account.address
+
+    @staticmethod
+    def get_a_random_word() -> str:
+        """
+        从BIP-39英文词库中随机获取一个单词。
+
+        Returns:
+            str: 一个随机的英文单词。
+        """
+        word_list = Mnemonic("english").wordlist
+        return random.choice(word_list)
