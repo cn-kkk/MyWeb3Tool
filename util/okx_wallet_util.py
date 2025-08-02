@@ -87,7 +87,9 @@ class OKXWalletUtil:
     def open_and_unlock_drission(self, browser, user_id: str):
         """
         使用 DrissionPage 打开并解锁OKX钱包。
-        失败时直接抛出异常。
+        如果钱包已解锁，则直接返回。
+        如果需要解锁，则执行解锁操作并保持页面打开。
+        失败时会尝试关闭页面并抛出异常。
         """
         wallet_tab = None
         try:
@@ -127,40 +129,108 @@ class OKXWalletUtil:
             if not wallet_tab.wait.ele_displayed(send_button_xpath, timeout=10):
                  log_util.warn(user_id, "未能确认钱包是否解锁，请手动确认。")
 
-        except Exception as e:
-            raise Exception(f"解锁钱包过程中失败: {e}")
-        finally:
-            # 在关闭标签页前，先检查它是否还存在于浏览器中，以避免竞态条件错误
             if wallet_tab and wallet_tab.tab_id in browser.tab_ids:
                 wallet_tab.close()
+        except Exception as e:
+            # 发生任何异常时，尝试关闭标签页并向上抛出异常
+            if wallet_tab and wallet_tab.tab_id in browser.tab_ids:
+                wallet_tab.close()
+            raise Exception(f"解锁钱包过程中失败: {e}")
 
     def click_OKX_in_selector(self, browser, page: ChromiumPage, user_id: str):
         """
-        在钱包选择弹窗中，通过尝试多种XPath策略来查找并点击OKX钱包选项。
+        在钱包选择弹窗中，通过尝试多种策略智能查找并点击OKX钱包选项。
+        此方法能处理普通DOM、Shadow DOM以及嵌套在特定组件中的复杂场景。
         失败时直接抛出异常。
         """
+        log_util.info(user_id, "正在钱包选择器中查找OKX Wallet (多策略, DP优先)...")
+        okx_button_found = False
+        clicked_element = None
 
-        # 定义多种XPath查找策略，按精确度从高到低排列
-        xpath_strategies = [
-            # 策略1: 查找包含'OKX Wallet'文本的div，然后选择其父按钮 (适用于FaroSwap)
-            "//div[contains(., 'OKX Wallet')]/ancestor::button[1]",
-            # 策略2: 直接查找包含'OKX Wallet'文本的按钮
-            "//button[contains(., 'OKX Wallet')]",
-            # 策略3: 查找任何包含'OKX Wallet'文本的元素 (作为备用)
-            "//*[contains(text(), 'OKX Wallet')]"
-        ]
+        # --- 策略1: 全局文本搜索 (DP原生，最高优先级) ---
+        log_util.info(user_id, "尝试策略 #1: 全局文本搜索...")
+        okx_text_element = page.ele('text:OKX Wallet', timeout=5)
+        if okx_text_element:
+            # 优先检查文本元素自身是否可点击 (处理父元素是“假”按钮的情况)
+            if okx_text_element.states.is_clickable:
+                clicked_element = okx_text_element
+                log_util.info(user_id, "策略 #1 成功 (文本元素自身可点击)。")
+            else:
+                # 如果文本自身不可点击，再查找其可点击的父按钮
+                button = okx_text_element.parent('tag:button')
+                if button and button.states.is_clickable:
+                    clicked_element = button
+                    log_util.info(user_id, "策略 #1 成功 (找到可点击的父按钮)。")
 
-        okx_wallet_button = None
-        for i, xpath in enumerate(xpath_strategies):
-            log_util.info(user_id, f"尝试策略 #{i + 1}: {xpath}")
-            button = page.ele(f"xpath:{xpath}", timeout=2) # 使用较短超时，快速失败
-            if button and button.states.is_clickable:
-                okx_wallet_button = button
-                break # 找到后立即跳出循环
-        
-        if okx_wallet_button:
-            okx_wallet_button.click()
+        # --- 策略2: 在Modal宿主组件的Shadow Root中查找 (DP原生，第二优先级) ---
+        if not clicked_element:
+            log_util.info(user_id, "尝试策略 #2: 在Modal组件的Shadow Root中搜索...")
+            modal_hosts = page.eles("xpath://*[contains(local-name(), 'modal')]")
+            if modal_hosts:
+                for host in modal_hosts:
+                    if not host.states.is_displayed: continue
+                    try:
+                        shadow_root = host.shadow_root
+                        okx_text_in_shadow = shadow_root.ele('text:OKX Wallet', timeout=2)
+                        if okx_text_in_shadow:
+                            # 同样采用“先内后外”的点击逻辑
+                            if okx_text_in_shadow.states.is_clickable:
+                                clicked_element = okx_text_in_shadow
+                                log_util.info(user_id, "策略 #2 成功 (Shadow DOM中的文本元素自身可点击)。")
+                                break
+                            else:
+                                button = okx_text_in_shadow.parent('tag:button')
+                                if button and button.states.is_clickable:
+                                    clicked_element = button
+                                    log_util.info(user_id, "策略 #2 成功 (找到Shadow DOM中可点击的父按钮)。")
+                                    break
+                    except Exception:
+                        continue
+
+        # --- 策略3: JS递归注入 (最后底牌) ---
+        if not clicked_element:
+            log_util.info(user_id, "尝试策略 #3: JS递归搜索 (最后底牌)...")
+            js_find_and_click = '''
+            function findWalletAndClick(rootElement, walletName) {
+                let foundNode = null;
+                function traverse(node) {
+                    if (!node || foundNode) return;
+                    if (node.shadowRoot) { traverse(node.shadowRoot); }
+                    if (!foundNode && node.childNodes) { node.childNodes.forEach(traverse); }
+                    if (!foundNode && node.innerText && node.innerText.includes(walletName) && (node.tagName === 'BUTTON' || node.tagName === 'DIV' || node.onclick)) {
+                        foundNode = node;
+                        return;
+                    }
+                }
+                traverse(rootElement.shadowRoot ? rootElement.shadowRoot : rootElement);
+                if (foundNode) { foundNode.click(); return true; }
+                return false;
+            }
+            return findWalletAndClick(arguments[0], arguments[1]);
+            '''
+            # 复用策略2找到的hosts，如果之前没找到，重新找一次
+            if 'modal_hosts' not in locals():
+                modal_hosts = page.eles("xpath://*[contains(local-name(), 'modal')]")
+
+            if modal_hosts:
+                for host in modal_hosts:
+                    if host.states.is_displayed:
+                        try:
+                            if page.run_js(js_find_and_click, host, "OKX Wallet"):
+                                log_util.info(user_id, "策略 #3 成功。")
+                                okx_button_found = True # JS已点击，只需标记成功
+                                break
+                        except Exception:
+                            continue
+
+        # --- 最终执行或报错 ---
+        if clicked_element:
+            clicked_element.click()
+            log_util.info(user_id, "点击了")
+            okx_button_found = True
+
+        if okx_button_found:
             AntiSybilDpUtil.human_long_wait()
             self.confirm_transaction_drission(browser, user_id)
         else:
-            raise Exception("尝试所有策略后，仍未在DApp页面找到可点击的 OKX Wallet 选项。")
+            raise Exception("尝试所有策略后，仍未能找到可点击的OKX Wallet选项。")

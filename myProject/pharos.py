@@ -56,51 +56,24 @@ class PharosScript:
             AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             
-            # 步骤4: 连接钱包
-            js_find_button = "const button = Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.trim() === 'Connect Wallet' && btn.offsetParent !== null); return !!button;"
-            if self.page.run_js(js_find_button):
-                self.page.ele('xpath://button[normalize-space()="Connect Wallet"]').click()
+            # 步骤4: 连接钱包 (使用DrissionPage原生方法，自动处理Shadow DOM)
+            connect_btn = self.page.ele('text:Connect Wallet', timeout=10)
+            if connect_btn:
+                connect_btn.click()
+                AntiSybilDpUtil.human_short_wait()
+                
+                # 调用重构后的方法选择OKX钱包
+                self.okx_util.click_OKX_in_selector(self.browser, self.page, self.user_id)
                 AntiSybilDpUtil.human_short_wait()
 
-                def _select_okx_wallet():
-                    """内部函数，用于处理复杂的钱包选择器逻辑，失败时会自己抛出异常。"""
-                    js_find_and_click = '''
-                    function findWalletAndClick(rootElement, walletName) {
-                        let foundNode = null;
-                        function traverse(node) {
-                            if (!node || foundNode) return;
-                            if (node.shadowRoot) { traverse(node.shadowRoot); }
-                            if (!foundNode && node.childNodes) { node.childNodes.forEach(traverse); }
-                            if (!foundNode && node.innerText && node.innerText.includes(walletName) && (node.tagName === 'BUTTON' || node.tagName === 'DIV' || node.onclick)) {
-                                foundNode = node;
-                                return;
-                            }
-                        }
-                        traverse(rootElement.shadowRoot ? rootElement.shadowRoot : rootElement);
-                        if (foundNode) { foundNode.click(); return true; }
-                        return false;
-                    }
-                    return findWalletAndClick(arguments[0], arguments[1]);
-                    '''
-                    possible_hosts = self.page.eles("xpath://*[contains(local-name(), 'modal')]")
-                    for host in possible_hosts:
-                        if host.states.is_displayed and self.page.run_js(js_find_and_click, host, "OKX Wallet"):
-                            return
-                    raise Exception("遍历所有弹窗未能找到并点击OKX Wallet。")
-
-                # 调用内部函数选择OKX钱包
-                _select_okx_wallet()
-                AntiSybilDpUtil.human_short_wait()
                 # 处理可选的"Continue"按钮
-                js_click_continue = """
-                const btn = document.querySelector('button.sc-fifgeu.donsIG');
-                if (btn && btn.textContent.trim() === 'Continue') {
-                  btn.click();
-                }
-                """
-                self.page.run_js(js_click_continue)
-                AntiSybilDpUtil.human_long_wait()
 
+                continue_btn = self.page.ele('text:Continue', timeout=5)
+                if continue_btn and continue_btn.states.is_clickable:
+                    continue_btn.click()
+                    AntiSybilDpUtil.human_long_wait()
+
+                # 最终确认钱包连接
                 self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 
             log_util.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
