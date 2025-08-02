@@ -130,21 +130,37 @@ class OKXWalletUtil:
         except Exception as e:
             raise Exception(f"解锁钱包过程中失败: {e}")
         finally:
+            # 在关闭标签页前，先检查它是否还存在于浏览器中，以避免竞态条件错误
             if wallet_tab and wallet_tab.tab_id in browser.tab_ids:
                 wallet_tab.close()
 
     def click_OKX_in_selector(self, browser, page: ChromiumPage, user_id: str):
         """
-        在钱包选择弹窗中选择OKX钱包，并处理后续的连接确认。
+        在钱包选择弹窗中，通过尝试多种XPath策略来查找并点击OKX钱包选项。
         失败时直接抛出异常。
         """
-        okx_wallet_button = page.ele(
-            'xpath://div[text()="OKX Wallet"]/parent::div/parent::div',
-            timeout=15
-        )
-        if not (okx_wallet_button and okx_wallet_button.states.is_displayed):
-            raise Exception("在DApp页面找不到 OKX Wallet 选项。")
 
-        okx_wallet_button.run_js("this.click();")
-        AntiSybilDpUtil.human_long_wait()
-        self.confirm_transaction_drission(browser, user_id)
+        # 定义多种XPath查找策略，按精确度从高到低排列
+        xpath_strategies = [
+            # 策略1: 查找包含'OKX Wallet'文本的div，然后选择其父按钮 (适用于FaroSwap)
+            "//div[contains(., 'OKX Wallet')]/ancestor::button[1]",
+            # 策略2: 直接查找包含'OKX Wallet'文本的按钮
+            "//button[contains(., 'OKX Wallet')]",
+            # 策略3: 查找任何包含'OKX Wallet'文本的元素 (作为备用)
+            "//*[contains(text(), 'OKX Wallet')]"
+        ]
+
+        okx_wallet_button = None
+        for i, xpath in enumerate(xpath_strategies):
+            log_util.info(user_id, f"尝试策略 #{i + 1}: {xpath}")
+            button = page.ele(f"xpath:{xpath}", timeout=2) # 使用较短超时，快速失败
+            if button and button.states.is_clickable:
+                okx_wallet_button = button
+                break # 找到后立即跳出循环
+        
+        if okx_wallet_button:
+            okx_wallet_button.click()
+            AntiSybilDpUtil.human_long_wait()
+            self.confirm_transaction_drission(browser, user_id)
+        else:
+            raise Exception("尝试所有策略后，仍未在DApp页面找到可点击的 OKX Wallet 选项。")

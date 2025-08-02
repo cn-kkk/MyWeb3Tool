@@ -13,7 +13,8 @@ class PharosScript:
 
     project_name = "Pharos"
     PHAROS_URL = "https://testnet.pharosnetwork.xyz/experience"
-    SWAP_URL = "https://testnet.zenithfinance.xyz/swap"
+    ZENITH_SWAP_URL = "https://testnet.zenithfinance.xyz/swap"
+    FARO_SWAP_URL = "https://faroswap.xyz/swap"
     NAME_URL = "https://test.pharosname.com/"
 
     def __init__(self, browser, user_id: str, window_height: int = 800):
@@ -164,21 +165,21 @@ class PharosScript:
             log_util.error(self.user_id, f"签到任务执行期间发生意外错误: {e}")
             return False
 
-    def pharos_task_swap(self):
+    def pharos_task_zenith_swap(self):
         """
-        Swap任务：打开新页面，连接钱包，默认会swap0.005个PHRS到USDC，然后会swap回来。
+        Zenith Swap任务：打开新页面，连接钱包，默认会swap0.005个PHRS到USDC，然后会swap回来。
         """
         log_util.info(self.user_id, "开始执行Swap任务...")
         swap_page = None
         try:
             # 步骤1: 打开新的SWAP_URL页面
-            swap_page = self.browser.new_tab(self.SWAP_URL)
+            swap_page = self.browser.new_tab(self.ZENITH_SWAP_URL)
 
             # 步骤2: 人性化等待和页面刷新
             AntiSybilDpUtil.human_long_wait()
             swap_page.refresh()
             swap_page.wait.load_start()
-            AntiSybilDpUtil.human_brief_wait()
+            AntiSybilDpUtil.human_short_wait()
 
             # 步骤3: 检查是否钱包连接
             connected_button = swap_page.ele('xpath://button[@data-testid="web3-status-connected"]', timeout=5) # type: ignore
@@ -312,6 +313,80 @@ class PharosScript:
             if swap_page and swap_page.tab_id in self.browser.tab_ids:
                 swap_page.close()
 
+    def pharos_task_faro_swap(self):
+        """
+        Faro Swap任务：打开新页面，连接钱包，并将PHRS兑换为USDT。
+        """
+        log_util.info(self.user_id, "开始执行Faro Swap任务...")
+        swap_page = None
+        try:
+            # 步骤1: 打开新的SWAP_URL页面
+            swap_page = self.browser.new_tab(self.FARO_SWAP_URL)
+            swap_page.wait.load_start()
+            AntiSybilDpUtil.human_brief_wait()
+
+            # 步骤2: 检查并连接钱包
+            connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=5)
+            if not (connected_button and connected_button.states.is_displayed):
+                connect_btn = swap_page.ele('xpath://button[contains(., "Connect a wallet")]')
+                connect_btn.click()
+                AntiSybilDpUtil.human_short_wait()
+                self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id)
+
+            # 步骤3: 确保要卖出的代币是 PHRS
+            from_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[1]')
+            current_from_token = from_token_selector.s_ele('xpath:./div[1]').text
+            if current_from_token != "PHRS":
+                from_token_selector.click()
+                AntiSybilDpUtil.human_short_wait()
+                phrs_option = swap_page.ele('xpath://div[text()="PHRS"]')
+                phrs_option.click()
+                AntiSybilDpUtil.human_short_wait()
+
+            # 步骤4: 确保要接收的代币是 USDT
+            to_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[2]')
+            current_to_token = to_token_selector.s_ele('xpath:./div[1]').text
+            if current_to_token != "USDT":
+                to_token_selector.click()
+                AntiSybilDpUtil.human_short_wait()
+                usdt_option = swap_page.ele('xpath://div[text()="USDT"]')
+                usdt_option.click()
+                AntiSybilDpUtil.human_short_wait()
+
+            # 步骤5: 输入要兑换的金额
+            amount_input = swap_page.ele('css:input.css-1fkmsfz')
+            amount_input.click()
+            AntiSybilDpUtil.human_brief_wait()
+            random_amount_str = AntiSybilDpUtil.get_perturbation_number(0.006, 0.001)
+            AntiSybilDpUtil.simulate_typing(swap_page, random_amount_str)
+            AntiSybilDpUtil.human_long_wait()
+
+            # 步骤6: 点击 Review Swap 按钮 (在15秒内持续查找)
+            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=15)
+            if not review_button:
+                raise Exception("等待15秒后未能找到'Review Swap'按钮，任务中止。")
+            review_button.click()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤7: 点击 Confirm Swap 按钮 (在15秒内持续查找)
+            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=15)
+            confirm_button.click()
+            AntiSybilDpUtil.human_long_wait()
+
+            # 步骤8: 处理钱包交易确认
+            self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            AntiSybilDpUtil.human_huge_wait()
+
+            log_util.info(self.user_id, "—————— Faro Swap任务已成功完成 ——————")
+            return True
+
+        except Exception as e:
+            log_util.error(self.user_id, f"Faro Swap任务执行时发生意外错误: {e}")
+            return False
+        finally:
+            if swap_page and swap_page.tab_id in self.browser.tab_ids:
+                swap_page.close()
+
     def pharos_task_send_tokens(self):
         """
         发送代币任务：滚动页面，打开发送弹窗，输入随机地址，确认发送。
@@ -385,6 +460,7 @@ class PharosScript:
         购买Pharos的Web3用户名。
         """
         log_util.info(self.user_id, "开始执行购买Web3用户名任务...")
+        name_page = None
         try:
             # 步骤1: 获取或打开NAME_URL页面
             tabs = self.browser.get_tabs(url=self.NAME_URL)
@@ -436,13 +512,15 @@ class PharosScript:
                     AntiSybilDpUtil.human_long_wait()
                     break
 
-            name_page.close()
             log_util.info(self.user_id, "—————— 购买Web3用户名任务等待后续开发 ——————")
             return True
 
         except Exception as e:
             log_util.error(self.user_id, f"购买Web3用户名任务执行时发生意外错误: {e}")
             return False
+        finally:
+            if name_page and name_page.tab_id in self.browser.tab_ids:
+                name_page.close()
 
 
 if __name__ == "__main__":
