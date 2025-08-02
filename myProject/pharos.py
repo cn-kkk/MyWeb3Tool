@@ -328,7 +328,7 @@ class PharosScript:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
 
             # 步骤1: 等待页面加载完成并查找'Send'按钮
-            self.page.wait.doc_loaded()
+            self.page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
@@ -337,17 +337,18 @@ class PharosScript:
                 return False
 
             # 步骤2: 滚动并点击Send按钮
-            self.page.run_js("window.scrollTo(0, document.body.scrollHeight * 0.35);")
+            self.page.scroll.down(700)
             AntiSybilDpUtil.human_short_wait()
             send_button.click()
-
+            AntiSybilDpUtil.human_long_wait()
             # 步骤3: 点击金额选项
             amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=15) # type: ignore
             if not amount_option or not amount_option.states.is_displayed:
                 log_util.error(self.user_id, "发送代币任务失败：未找到'0.001PHRS'金额选项。")
                 return False
             amount_option.click()
-
+            AntiSybilDpUtil.human_short_wait()
+            self.page.wait.doc_loaded()
             # 步骤4: 输入随机地址
             address_input = self.page.ele('xpath://input[@placeholder="Enter Address"]', timeout=10) # type: ignore
             if not address_input or not address_input.states.is_displayed:
@@ -355,7 +356,7 @@ class PharosScript:
                 return False
             random_address = self.wallet_util.generate_random_evm_address()
             address_input.input(random_address)
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.human_long_wait()
 
             # 步骤5: 点击最终的“Send PHRS”按钮
             final_send_button = self.page.ele('xpath://button[text()="Send PHRS"]', timeout=10) # type: ignore

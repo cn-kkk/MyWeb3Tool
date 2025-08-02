@@ -144,7 +144,9 @@ class WardenScript:
             # 步骤4: 玩游戏
             for _ in range(10):
                 key = random.choice(['a', 'd'])
-                self.page.actions.key_down(key).key_up(key)
+                self.page.actions.key_down(key)
+                time.sleep(0.2)
+                self.page.actions.key_up(key)
                 time.sleep(1)
 
             time.sleep(80)
