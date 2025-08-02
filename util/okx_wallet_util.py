@@ -105,32 +105,34 @@ class OKXWalletUtil:
             send_button_xpath = 'xpath://*[contains(., "发送") or contains(., "發送")]'
 
             if wallet_tab.ele(send_button_xpath, timeout=10):
-                return
-
-            password_input = wallet_tab.ele('tag:input@type=password', timeout=15)
-            if password_input:
-                password_input.input(self.PASSWORD)
-                AntiSybilDpUtil.human_short_wait()
-                unlock_button = wallet_tab.ele('tag:button@type=submit')
-                unlock_button.click()
-                AntiSybilDpUtil.human_short_wait()
-
-            # 解锁后，检查并处理可能出现的“取消交易”弹窗
-            cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=2)
-            if cancel_tx_button and cancel_tx_button.states.is_clickable:
-                cancel_tx_button.click()
-                AntiSybilDpUtil.human_short_wait()
-
-            cancel_button = wallet_tab.ele('text:取消', timeout=2)
-            if cancel_button and cancel_tx_button.states.is_clickable:
-                cancel_button.click()
-                AntiSybilDpUtil.human_short_wait()
-
-            if not wallet_tab.wait.ele_displayed(send_button_xpath, timeout=10):
-                 log_util.warn(user_id, "未能确认钱包是否解锁，请手动确认。")
-
-            if wallet_tab and wallet_tab.tab_id in browser.tab_ids:
+                log_util.info(user_id, "钱包已经是解锁状态")
                 wallet_tab.close()
+            else:
+                password_input = wallet_tab.ele('tag:input@type=password', timeout=15)
+                if password_input:
+                    password_input.input(self.PASSWORD)
+                    AntiSybilDpUtil.human_short_wait()
+                    unlock_button = wallet_tab.ele('tag:button@type=submit')
+                    unlock_button.click()
+                    AntiSybilDpUtil.human_short_wait()
+
+                # 解锁后，检查并处理可能出现的“取消交易”弹窗
+                cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=2)
+                if cancel_tx_button and cancel_tx_button.states.is_clickable:
+                    cancel_tx_button.click()
+                    AntiSybilDpUtil.human_short_wait()
+
+                cancel_button = wallet_tab.ele('text:取消', timeout=2)
+                if cancel_button and cancel_tx_button.states.is_clickable:
+                    cancel_button.click()
+                    AntiSybilDpUtil.human_short_wait()
+
+                if not wallet_tab.wait.ele_displayed(send_button_xpath, timeout=10):
+                    log_util.warn(user_id, "未能确认钱包是否解锁，请手动确认。")
+
+                if wallet_tab and wallet_tab.tab_id in browser.tab_ids:
+                    wallet_tab.close()
+
         except Exception as e:
             # 发生任何异常时，尝试关闭标签页并向上抛出异常
             if wallet_tab and wallet_tab.tab_id in browser.tab_ids:
@@ -140,31 +142,24 @@ class OKXWalletUtil:
     def click_OKX_in_selector(self, browser, page: ChromiumPage, user_id: str):
         """
         在钱包选择弹窗中，通过尝试多种策略智能查找并点击OKX钱包选项。
-        此方法能处理普通DOM、Shadow DOM以及嵌套在特定组件中的复杂场景。
-        失败时直接抛出异常。
         """
-        log_util.info(user_id, "正在钱包选择器中查找OKX Wallet (多策略, DP优先)...")
         okx_button_found = False
         clicked_element = None
 
         # --- 策略1: 全局文本搜索 (DP原生，最高优先级) ---
-        log_util.info(user_id, "尝试策略 #1: 全局文本搜索...")
         okx_text_element = page.ele('text:OKX Wallet', timeout=5)
         if okx_text_element:
             # 优先检查文本元素自身是否可点击 (处理父元素是“假”按钮的情况)
             if okx_text_element.states.is_clickable:
                 clicked_element = okx_text_element
-                log_util.info(user_id, "策略 #1 成功 (文本元素自身可点击)。")
             else:
                 # 如果文本自身不可点击，再查找其可点击的父按钮
                 button = okx_text_element.parent('tag:button')
                 if button and button.states.is_clickable:
                     clicked_element = button
-                    log_util.info(user_id, "策略 #1 成功 (找到可点击的父按钮)。")
 
         # --- 策略2: 在Modal宿主组件的Shadow Root中查找 (DP原生，第二优先级) ---
         if not clicked_element:
-            log_util.info(user_id, "尝试策略 #2: 在Modal组件的Shadow Root中搜索...")
             modal_hosts = page.eles("xpath://*[contains(local-name(), 'modal')]")
             if modal_hosts:
                 for host in modal_hosts:
@@ -176,18 +171,16 @@ class OKXWalletUtil:
                             # 同样采用“先内后外”的点击逻辑
                             if okx_text_in_shadow.states.is_clickable:
                                 clicked_element = okx_text_in_shadow
-                                log_util.info(user_id, "策略 #2 成功 (Shadow DOM中的文本元素自身可点击)。")
                                 break
                             else:
                                 button = okx_text_in_shadow.parent('tag:button')
                                 if button and button.states.is_clickable:
                                     clicked_element = button
-                                    log_util.info(user_id, "策略 #2 成功 (找到Shadow DOM中可点击的父按钮)。")
                                     break
                     except Exception:
                         continue
 
-        # --- 策略3: JS递归注入 (最后底牌) ---
+        # --- 策略3: JS递归注入 ---
         if not clicked_element:
             log_util.info(user_id, "尝试策略 #3: JS递归搜索 (最后底牌)...")
             js_find_and_click = '''
@@ -225,8 +218,7 @@ class OKXWalletUtil:
 
         # --- 最终执行或报错 ---
         if clicked_element:
-            clicked_element.click()
-            log_util.info(user_id, "点击了")
+            page.actions.click(clicked_element)
             okx_button_found = True
 
         if okx_button_found:
@@ -234,3 +226,18 @@ class OKXWalletUtil:
             self.confirm_transaction_drission(browser, user_id)
         else:
             raise Exception("尝试所有策略后，仍未能找到可点击的OKX Wallet选项。")
+
+    def click_OKX_in_selector2(self, browser, page: ChromiumPage, user_id: str):
+        """
+        使用js去点击的。
+        """
+        okx_wallet_button = page.ele(
+            'xpath://div[text()="OKX Wallet"]/parent::div/parent::div',
+            timeout=15
+        )
+        if not (okx_wallet_button and okx_wallet_button.states.is_displayed):
+            raise Exception("在DApp页面找不到 OKX Wallet 选项。")
+
+        okx_wallet_button.run_js("this.click();")
+        AntiSybilDpUtil.human_long_wait()
+        self.confirm_transaction_drission(browser, user_id)

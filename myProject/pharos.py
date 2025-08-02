@@ -1,3 +1,4 @@
+import time
 from DrissionPage import ChromiumPage
 from util.okx_wallet_util import OKXWalletUtil
 from util.anti_sybil_dp_util import AntiSybilDpUtil
@@ -165,7 +166,7 @@ class PharosScript:
                 if connect_btn and connect_btn.states.is_displayed:
                     connect_btn.click()
                     AntiSybilDpUtil.human_short_wait()
-                    if not self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id):
+                    if not self.okx_util.click_OKX_in_selector2(self.browser, swap_page, self.user_id):
                         log_util.error(self.user_id, "Swap任务失败：执行OKX钱包连接流程失败。")
                         return False
                 else:
@@ -305,6 +306,10 @@ class PharosScript:
                 connect_btn.click()
                 AntiSybilDpUtil.human_short_wait()
                 self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id)
+
+            swap_page.actions.key_down("Escape")
+            time.sleep(0.1)
+            swap_page.actions.key_up("Escape")
 
             # 步骤3: 确保要卖出的代币是 PHRS
             from_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[1]')
