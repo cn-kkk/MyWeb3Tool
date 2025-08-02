@@ -99,7 +99,10 @@ class OKXWalletUtil:
             wallet_tab.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
 
-            if wallet_tab.ele("text:发送", timeout=10):
+            # 使用 xpath 兼容简体“发送”和繁体“發送”
+            send_button_xpath = 'xpath://*[contains(., "发送") or contains(., "發送")]'
+
+            if wallet_tab.ele(send_button_xpath, timeout=10):
                 return
 
             password_input = wallet_tab.ele('tag:input@type=password', timeout=15)
@@ -121,8 +124,8 @@ class OKXWalletUtil:
                 cancel_button.click()
                 AntiSybilDpUtil.human_short_wait()
 
-            if not wallet_tab.wait.ele_displayed('text:发送', timeout=10):
-                 raise Exception("点击解锁后未能确认钱包已解锁。")
+            if not wallet_tab.wait.ele_displayed(send_button_xpath, timeout=10):
+                 log_util.warn(user_id, "未能确认钱包是否解锁，请手动确认。")
 
         except Exception as e:
             raise Exception(f"解锁钱包过程中失败: {e}")

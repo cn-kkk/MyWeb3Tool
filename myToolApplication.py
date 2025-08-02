@@ -34,7 +34,7 @@ class BackendInitializationThread(QThread):
     def run(self):
         try:
             self.controller.initialize_app()
-            self.initialization_done.emit(True, "Backend initialized successfully.")
+            self.initialization_done.emit(True, "后端初始化成功.")
         except Exception as e:
             log_util.error("Backend", f"Backend initialization failed: {e}", exc_info=True)
             self.initialization_done.emit(False, str(e))
@@ -662,7 +662,7 @@ class MyToolApplication(QWidget):
     def on_backend_initialized(self, success, message):
         log_util.info("UI", f"后端初始化结果: {message}")
         if success:
-            self.project_tab.populate_projects(self.controller.projects); log_util.info("UI", "项目选项卡已更新.")
+            self.project_tab.populate_projects(self.controller.projects)
         else: QMessageBox.critical(self, "后端初始化失败", message)
         
     def on_tab_bar_clicked(self, index):

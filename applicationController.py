@@ -106,6 +106,7 @@ class ApplicationController:
             return self.pages
 
     def arrange_windows_as_grid(self, page_envs_batch):
+        """将一批浏览器窗口以网格状排列在屏幕上。"""
         log_util.info("控制器", f"正在以网格形式排列 {len(page_envs_batch)} 个窗口。")
 
         # 直接计算win32gui需要的物理像素坐标
@@ -122,36 +123,12 @@ class ApplicationController:
             {"x": width, "y": self.window_height + gap_physical_y, "width": width, "height": self.window_height}
         ]
 
-        # 1. 获取所有可见窗口的句柄和标题
-        all_windows = []
-        def enum_windows_callback(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
-                title = win32gui.GetWindowText(hwnd)
-                if title:
-                    all_windows.append((hwnd, title))
-        win32gui.EnumWindows(enum_windows_callback, None)
-
-        # 2. 为每个浏览器实例寻找并排列窗口
-        used_hwnds = set()
-        last_valid_hwnd = None
         for i, page_env in enumerate(page_envs_batch):
             if i >= len(positions): continue
             pos = positions[i]
-            found_hwnd = None
-
+            sleep(0.1)
             try:
-                # 获取部分标题，例如 "109"
-                partial_title = page_env.browser.latest_tab.title
-                
-                # 遍历所有窗口，寻找最佳匹配
-                for hwnd, full_title in all_windows:
-                    if hwnd in used_hwnds: continue # 跳过已分配的窗口
-
-                    # 智能匹配：必须同时包含部分标题和浏览器关键字
-                    if partial_title in full_title and "SunBrowser" in full_title:
-                        found_hwnd = hwnd
-                        used_hwnds.add(hwnd) # 标记为已使用
-                        break # 找到后立即停止搜索
+                found_hwnd = self._find_hwnd_for_page_env(page_env)
 
                 if found_hwnd:
                     # 采用分步、强健的序列来确保窗口被正确恢复、移动和置顶
@@ -159,28 +136,21 @@ class ApplicationController:
                     time.sleep(0.1) # 缩短等待时间，因为我们只移动，不抢焦点
                     win32gui.SetWindowPos(found_hwnd, win32con.HWND_TOPMOST, pos["x"], pos["y"], pos["width"], pos["height"], 0)
                     win32gui.SetWindowPos(found_hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
-                    last_valid_hwnd = found_hwnd # 记录最后一个有效窗口
                 else:
-                    log_util.warn(page_env.user_id, f"未能通过智能匹配找到标题包含 '{partial_title}' 和 'SunBrowser' 的窗口，已跳过排列。")
+                    log_util.warn(page_env.user_id, f"未能通过智能匹配找到窗口，已跳过排列。")
 
             except Exception as e:
                 log_util.error(page_env.user_id, f"排列窗口时发生错误: {e}")
-        
-        # 3. 在所有窗口排列完成后，只激活最后一个窗口
-        if last_valid_hwnd:
-            try:
-                win32gui.SetForegroundWindow(last_valid_hwnd)
-            except Exception as e:
-                log_util.error("控制器", f"激活最后一个窗口时出错: {e}")
+
 
     def initialize_app(self):
-        self.get_all_drission_pages()
         self.discover_projects()
         self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
         log_util.info("控制器", f"线程池初始化完成，最大工作线程数={self.max_workers}。")
         log_util.info("控制器", "核心应用后端初始化完成。")
 
     def _browser_worker(self, page_env: DrissionPageEnv, sequence: list[dict]):
+        """在单个浏览器环境中，按顺序执行指定的任务序列。"""
 
         # 线程级初始化：只执行一次的钱包解锁
         try:
@@ -301,8 +271,36 @@ class ApplicationController:
         log_util.info("控制器", f"已为 {N} 个浏览器生成了独一无二或近似独一无二的任务分配方案。")
         return assignments
 
+    def _find_hwnd_for_page_env(self, page_env: DrissionPageEnv) -> int | None:
+        """根据 DrissionPageEnv 查找并返回其对应的窗口句柄 (hwnd)。"""
+        found_hwnd = None
+        try:
+            partial_title = page_env.browser.latest_tab.title
+            
+            all_windows = []
+            def enum_windows_callback(hwnd, _):
+                if win32gui.IsWindowVisible(hwnd):
+                    title = win32gui.GetWindowText(hwnd)
+                    if title:
+                        all_windows.append((hwnd, title))
+            win32gui.EnumWindows(enum_windows_callback, None)
+
+            for hwnd, full_title in all_windows:
+                if partial_title in full_title and "SunBrowser" in full_title:
+                    found_hwnd = hwnd
+                    break
+        except Exception as e:
+            log_util.error(page_env.user_id, f"查找窗口句柄时出错: {e}")
+        
+        return found_hwnd
+
     def dispatch_sequence(self, sequence: list[dict]):
+        """接收UI层的任务序列，并将其分发到多个浏览器实例中并行执行。"""
         log_util.info("控制器", f"接收到任务分发请求，序列长度: {len(sequence)}。")
+        
+        # 每次分发前，都重新获取最新的浏览器列表
+        self.get_all_drission_pages()
+
         if not self.pages:
             log_util.warn("控制器", "没有可用的浏览器实例来分发任务。")
             return
@@ -323,18 +321,18 @@ class ApplicationController:
         
         assignment_index = 0
         for i, chunk in enumerate(page_chunks):
-            sleep(0.2)
+            sleep(0.1)
             self.arrange_windows_as_grid(chunk)
 
             for page_env in chunk:
                 try:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     
                     browser = page_env.browser
                     tabs = browser.get_tabs()
                     for tab in tabs[1:]:
                         tab.close()
-                    time.sleep(0.2)
+                    time.sleep(0.1)
 
                 except Exception as e:
                     log_util.error(page_env.user_id, f"清理标签页时出错: {e}", exc_info=True)
@@ -348,6 +346,17 @@ class ApplicationController:
                     assignment_index += 1
             
             wait(futures)
+
+            # 批次任务完成后，最小化所有相关窗口
+            for page_env in chunk:
+                try:
+                    hwnd = self._find_hwnd_for_page_env(page_env)
+                    if hwnd:
+                        win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+                        time.sleep(0.1) # 短暂延时避免操作过快
+                except Exception as e:
+                    log_util.error(page_env.user_id, f"最小化窗口 {page_env.user_id} 时出错: {e}")
+
             log_util.info("控制器", f"批次 {i + 1}/{len(page_chunks)} 已完成。")
         log_util.info("控制器", "任务序列的所有批次已处理完毕。")
 
