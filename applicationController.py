@@ -272,27 +272,35 @@ class ApplicationController:
         return assignments
 
     def _find_hwnd_for_page_env(self, page_env: DrissionPageEnv) -> int | None:
-        """根据 DrissionPageEnv 查找并返回其对应的窗口句柄 (hwnd)。"""
-        found_hwnd = None
+        """根据 DrissionPageEnv 的进程ID (PID) 查找并返回其对应的窗口句柄 (hwnd)。"""
         try:
-            partial_title = page_env.browser.latest_tab.title
-            
+            pid = page_env.browser.process_id
+            if not pid:
+                log_util.warn(page_env.user_id, "无法获取浏览器进程PID，跳过窗口查找。")
+                return None
+
             all_windows = []
             def enum_windows_callback(hwnd, _):
                 if win32gui.IsWindowVisible(hwnd):
-                    title = win32gui.GetWindowText(hwnd)
-                    if title:
-                        all_windows.append((hwnd, title))
+                    _, found_pid = win32process.GetWindowThreadProcessId(hwnd)
+                    if found_pid == pid:
+                        # 确认是主窗口，而不是某个子窗口或对话框
+                        # SunBrowser/Chrome的主窗口类名通常是 "Chrome_WidgetWin_1"
+                        class_name = win32gui.GetClassName(hwnd)
+                        if class_name == "Chrome_WidgetWin_1":
+                            all_windows.append(hwnd)
+            
             win32gui.EnumWindows(enum_windows_callback, None)
 
-            for hwnd, full_title in all_windows:
-                if partial_title in full_title and "SunBrowser" in full_title:
-                    found_hwnd = hwnd
-                    break
+            if all_windows:
+                return all_windows[0] # 通常一个进程只有一个主窗口
+            else:
+                log_util.warn(page_env.user_id, f"未能根据PID {pid} 找到匹配的浏览器主窗口。")
+                return None
+                
         except Exception as e:
-            log_util.error(page_env.user_id, f"查找窗口句柄时出错: {e}")
-        
-        return found_hwnd
+            log_util.error(page_env.user_id, f"通过PID查找窗口句柄时发生严重错误: {e}", exc_info=True)
+            return None
 
     def dispatch_sequence(self, sequence: list[dict]):
         """接收UI层的任务序列，并将其分发到多个浏览器实例中并行执行。"""
