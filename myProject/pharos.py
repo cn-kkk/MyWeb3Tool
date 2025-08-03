@@ -230,7 +230,7 @@ class PharosScript:
 
             # 步骤8: 等待兑换率计算完成
             swap_page.wait.doc_loaded()
-            AntiSybilDpUtil.human_long_wait() # 使用长等待，给网页足够的时间返回汇率
+            AntiSybilDpUtil.human_huge_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
             swap_btn = swap_page.ele('#swap-button') # type: ignore
@@ -280,7 +280,7 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             swap_btn.click()
-            AntiSybilDpUtil.human_long_wait()
+            AntiSybilDpUtil.human_huge_wait()
 
             new_confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
             new_confirm_swap_btn.wait.clickable(timeout=10)
@@ -409,7 +409,7 @@ class PharosScript:
             # 步骤2: 滚动并点击Send按钮
             self.page.scroll.down(700)
             AntiSybilDpUtil.human_short_wait()
-            send_button.click()
+            self.page.actions.click(send_button)
             AntiSybilDpUtil.human_long_wait()
             # 步骤3: 点击金额选项
             amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=15) # type: ignore
