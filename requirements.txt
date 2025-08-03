@@ -16,3 +16,6 @@ requests>=2.25.1
 
 # 其他工具
 Markdown>=3.3.4
+
+# 图像处理
+Pillow>=10.4.0
