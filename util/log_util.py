@@ -53,15 +53,14 @@ class LogUtil:
 
     def _flush_buffer_to_file(self):
         with self.buffer_lock:
-            if not self.log_buffer:
-                return
-            try:
-                with open(self.log_filename, "a", encoding="utf-8") as f:
-                    for msg in self.log_buffer:
-                        f.write(msg + "\n")
-                self.log_buffer.clear()
-            except Exception as e:
-                print(f"[CRITICAL] Failed to write to log file {self.log_filename}: {e}")
+            if self.log_buffer:
+                try:
+                    with open(self.log_filename, "a", encoding="utf-8") as f:
+                        for msg in self.log_buffer:
+                            f.write(msg + "\n")
+                    self.log_buffer.clear()
+                except Exception as e:
+                    print(f"[CRITICAL] Failed to write to log file {self.log_filename}: {e}")
         # 重置定时器
         self.start_timer()
 
