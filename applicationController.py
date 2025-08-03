@@ -232,7 +232,7 @@ class ApplicationController:
             return [expanded_tasks for _ in range(num_browsers)]
 
         # 2. 安全检查：如果任务总数过多，则退回至简单随机化，避免性能问题
-        if total_tasks > 10: # 10! = 3,628,800，是一个合理的上限
+        if total_tasks > 7:
             log_util.warn("控制器", f"任务总数 ({total_tasks}) 超过10，为避免性能问题，将采用简单随机化（允许碰撞）。")
             assignments = []
             for _ in range(num_browsers):

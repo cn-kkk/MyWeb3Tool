@@ -312,8 +312,7 @@ class PharosScript:
         try:
             # 步骤1: 打开新的SWAP_URL页面
             swap_page = self.browser.new_tab(self.FARO_SWAP_URL)
-            swap_page.wait.load_start()
-            AntiSybilDpUtil.human_brief_wait()
+            AntiSybilDpUtil.human_long_wait()
 
             # 步骤2: 检查并连接钱包
             connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=5)
@@ -371,6 +370,34 @@ class PharosScript:
             self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
             AntiSybilDpUtil.human_huge_wait()
 
+            swap_page.actions.key_down("Escape")
+            time.sleep(0.1)
+            swap_page.actions.key_up("Escape")
+            AntiSybilDpUtil.simulate_random_click(swap_page, self.user_id)
+
+            # 步骤9: 点击代币对调按钮
+            arrow_btn = swap_page.ele(
+                'css:button:has(> svg[data-testid="ArrowBackIcon"])', timeout=10
+            )
+            arrow_btn.run_js("this.click()")
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤10: 点击Max按钮
+            max_button = swap_page.ele('xpath://button[normalize-space()="Max"]', timeout=10)
+            max_button.click()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤11: 再次swap
+            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=15)
+            review_button.click()
+            AntiSybilDpUtil.human_short_wait()
+
+            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=15)
+            confirm_button.click()
+            AntiSybilDpUtil.human_long_wait()
+
+            self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            AntiSybilDpUtil.human_huge_wait()
             log_util.info(self.user_id, "—————— Faro Swap任务已成功完成 ——————")
             return True
 
@@ -401,13 +428,14 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
             self._handle_switch_network_popup(self.page)
             AntiSybilDpUtil.simulate_mouse_move(self.page)
+            self.page.scroll.down(800)
+
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:
                 log_util.error(self.user_id, "发送代币任务失败：未找到'Send'按钮。")
                 return False
 
-            # 步骤2: 滚动并点击Send按钮
-            self.page.scroll.down(700)
+            # 步骤2: 点击Send按钮
             AntiSybilDpUtil.human_short_wait()
             self.page.actions.click(send_button)
             AntiSybilDpUtil.human_long_wait()
