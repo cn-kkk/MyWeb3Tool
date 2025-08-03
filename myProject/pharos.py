@@ -53,6 +53,7 @@ class PharosScript:
 
             # 步骤3: 人性化等待和交互
             AntiSybilDpUtil.human_long_wait()
+            self._handle_switch_network_popup(self.page)
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
@@ -82,6 +83,20 @@ class PharosScript:
             log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
             raise
 
+    def _handle_switch_network_popup(self, page: ChromiumPage):
+        """
+        检查并处理“切换网络”弹窗。
+        """
+        try:
+            # 使用CSS选择器和文本内容定位按钮，增加查找的鲁棒性
+            switch_button = page.ele('xpath://button[contains(text(), "Switch")]', timeout=3)
+            if switch_button and switch_button.states.is_clickable:
+                switch_button.click()
+                AntiSybilDpUtil.human_short_wait()  # 等待弹窗消失或页面响应
+        except Exception as e:
+            # 如果查找或点击失败，只记录警告，不中断主流程
+            log_util.warn(self.user_id, f"处理网络切换弹窗时出现非致命错误: {e}")
+
     @task_annotation.once_per_day
     def pharos_task_check_in(self):
         """
@@ -100,6 +115,7 @@ class PharosScript:
 
             # 步骤1: 等待页面加载并查找 "Check in" 按钮
             AntiSybilDpUtil.human_short_wait()
+            self._handle_switch_network_popup(self.page)
             self.page.wait.doc_loaded()
             checkin_btn = self.page.ele(  # type: ignore
                 'xpath://button[contains(text(), "Check in")]', timeout=20
@@ -383,6 +399,7 @@ class PharosScript:
             # 步骤1: 等待页面加载完成并查找'Send'按钮
             self.page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
+            self._handle_switch_network_popup(self.page)
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:

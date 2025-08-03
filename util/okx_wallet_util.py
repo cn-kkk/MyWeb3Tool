@@ -98,8 +98,7 @@ class OKXWalletUtil:
 
             wallet_url = f"chrome-extension://{self.EXTENSION_ID}/popup.html"
             wallet_tab = browser.new_tab(url=wallet_url)
-            wallet_tab.wait.load_start()
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.human_long_wait()
 
             # 使用 xpath 兼容简体“发送”和繁体“發送”
             send_button_xpath = 'xpath://*[contains(., "发送") or contains(., "發送")]'
@@ -108,7 +107,7 @@ class OKXWalletUtil:
                 log_util.info(user_id, "钱包已经是解锁状态")
                 wallet_tab.close()
             else:
-                password_input = wallet_tab.ele('tag:input@type=password', timeout=15)
+                password_input = wallet_tab.ele('tag:input@type=password', timeout=10)
                 if password_input:
                     password_input.input(self.PASSWORD)
                     AntiSybilDpUtil.human_short_wait()
