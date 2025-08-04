@@ -320,6 +320,8 @@ class ApplicationController:
                 except Exception as e:
                     log_util.error(page_env.user_id, f"清理标签页时出错: {e}", exc_info=True)
 
+            time.sleep(2)
+
             futures = []
             for page_env in chunk:
                 if assignment_index < len(task_assignments):
@@ -341,6 +343,9 @@ class ApplicationController:
                     log_util.error(page_env.user_id, f"最小化窗口 {page_env.user_id} 时出错: {e}", exc_info=True)
 
             log_util.info("控制器", f"批次 {i + 1}/{len(page_chunks)} 已完成。")
+
+            if i < len(page_chunks) - 1:
+                time.sleep(2)
         log_util.info("控制器", "任务序列的所有批次已处理完毕。")
 
     def interrupt_tasks(self):
