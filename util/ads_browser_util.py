@@ -131,3 +131,54 @@ class AdsBrowserUtil:
                 )
 
         return envs
+
+    @staticmethod
+    def start_browser_if_not_running(user_id: str):
+        """
+        检查指定ID的浏览器是否正在运行，如果未运行，则尝试启动它。
+        这是一个独立的、可复用的方法，专为未来的重构做准备。
+
+        :param user_id: 要操作的浏览器user_id。
+        :return: 如果浏览器最终处于运行状态，则返回其调试地址(selenium_ws)；否则返回None。
+        """
+        api_base = AdsBrowserUtil._get_api_config()
+        if not api_base:
+            log_util.error("AdsBrowserUtil", "API基础地址未配置，无法启动浏览器。")
+            return None
+
+        # 1. 检查浏览器当前状态
+        active_endpoint = "/browser/active"
+        active_url = f"{api_base.rstrip('/')}{active_endpoint}?user_id={user_id}"
+        
+        try:
+            resp = requests.get(active_url, proxies={"http": None, "https": None}, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("code") == 0 and data.get("data", {}).get("status") == "Active":
+                return data["data"]["ws"]["selenium"]
+
+        except requests.exceptions.RequestException as e:
+            log_util.error("AdsBrowserUtil", f"检查浏览器 {user_id} 状态时API请求失败: {e}", exc_info=True)
+            return None # API不通，无法继续
+
+        # 2. 如果未运行，则启动浏览器
+        time.sleep(0.2)
+        start_endpoint = "/browser/start"
+        start_url = f"{api_base.rstrip('/')}{start_endpoint}?user_id={user_id}"
+
+        try:
+            resp = requests.get(start_url, proxies={"http": None, "https": None}, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if data.get("code") == 0 and data.get("data", {}).get("ws", {}).get("selenium"):
+                time.sleep(20) # 等待浏览器进程完全初始化
+                return data["data"]["ws"]["selenium"]
+            else:
+                api_msg = data.get("msg", "无来自API的消息。")
+                log_util.error("AdsBrowserUtil", f"启动浏览器 {user_id} 失败。API消息: {api_msg}")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            log_util.error("AdsBrowserUtil", f"启动浏览器 {user_id} 时API请求失败: {e}", exc_info=True)
+            return None
