@@ -96,7 +96,7 @@ class WardenScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"异常: {self.project_name} - AI Chat 任务执行失败: {e}")
+            log_util.error(self.user_id, f"异常: {self.project_name} - AI Chat 任务执行失败: {e}", exc_info=True)
             return False
         finally:
             if chat_page and chat_page.tab_id in self.browser.tab_ids:
@@ -149,13 +149,13 @@ class WardenScript:
                 self.page.actions.key_up(key)
                 time.sleep(1)
 
-            time.sleep(80)
+            time.sleep(60)
             self.page.refresh()
             log_util.info(self.user_id, f"任务成功: {self.project_name} - Play Game")
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"异常: {self.project_name} - Play Game 任务执行失败: {e}")
+            log_util.error(self.user_id, f"异常: {self.project_name} - Play Game 任务执行失败: {e}", exc_info=True)
             return False
 
 

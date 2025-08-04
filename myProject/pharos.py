@@ -80,7 +80,7 @@ class PharosScript:
 
             log_util.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
         except Exception as e:
-            log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}")
+            log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}", exc_info=True)
             raise
 
     def _handle_switch_network_popup(self, page: ChromiumPage):
@@ -152,7 +152,7 @@ class PharosScript:
                     log_util.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
                     return True
 
-            log_util.error(self.user_id, f"签到任务执行期间发生意外错误: {e}")
+            log_util.error(self.user_id, f"签到任务执行期间发生意外错误: {e}", exc_info=True)
             return False
 
     def pharos_task_zenith_swap(self):
@@ -296,7 +296,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"Swap任务执行时发生意外错误: {e}")
+            log_util.error(self.user_id, f"Swap任务执行时发生意外错误: {e}", exc_info=True)
             return False
         finally:
             # 任务结束后关闭页面
@@ -402,7 +402,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"Faro Swap任务执行时发生意外错误: {e}")
+            log_util.error(self.user_id, f"Faro Swap任务执行时发生意外错误: {e}", exc_info=True)
             return False
         finally:
             if swap_page and swap_page.tab_id in self.browser.tab_ids:
@@ -476,7 +476,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"发送代币任务执行时发生意外错误: {e}")
+            log_util.error(self.user_id, f"发送代币任务执行时发生意外错误: {e}", exc_info=True)
             return False
 
     def pharos_task_buy_web3_name(self):
@@ -540,7 +540,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"购买Web3用户名任务执行时发生意外错误: {e}")
+            log_util.error(self.user_id, f"购买Web3用户名任务执行时发生意外错误: {e}", exc_info=True)
             return False
         finally:
             if name_page and name_page.tab_id in self.browser.tab_ids:

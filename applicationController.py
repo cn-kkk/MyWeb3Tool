@@ -146,7 +146,7 @@ class ApplicationController:
                 time.sleep(0.1)
                 page.set.window.location(x=actual_x, y=actual_y)
             except Exception as e:
-                log_util.error(page_env.user_id, f"使用DrissionPage排列窗口时发生错误: {e}")
+                log_util.error(page_env.user_id, f"使用DrissionPage排列窗口时发生错误: {e}", exc_info=True)
 
 
     def initialize_app(self):
@@ -177,14 +177,14 @@ class ApplicationController:
 
                 task_name = task_definition.get("task_name")
                 if not task_name:
-                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'task_name' 键: {task_definition}")
+                    log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 任务定义缺少 'task_name' 键: {task_definition}")
                     continue
 
                 project_name_inferred = task_name.split('_task_')[0].capitalize()
                 project_info = next((p for p in self.projects if p["project_name"].lower() == project_name_inferred.lower()), None)
 
                 if not project_info:
-                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 无法从任务名 '{task_name}' 推断出有效项目。")
+                    log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 无法从任务名 '{task_name}' 推断出有效项目。")
                     continue
 
                 # 项目级上下文管理：如果需要，则初始化新项目实例
@@ -205,7 +205,7 @@ class ApplicationController:
 
                 task_method = getattr(script_instance, task_name, None)
                 if not (task_method and callable(task_method)):
-                    log_util.error(page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name_inferred}' 中未找到或无效的任务方法 '{task_name}'。")
+                    log_util.warn(page_env.user_id, f"[线程-{page_env.user_id}] 在 '{project_name_inferred}' 中未找到或无效的任务方法 '{task_name}'。")
                     continue
 
                 # 任务级执行（无内部重复循环）
@@ -291,7 +291,7 @@ class ApplicationController:
             log_util.warn("控制器", "任务序列为空，无需分发。")
             return
         if not self.executor:
-            log_util.error("控制器", "线程池未初始化，无法分发任务。")
+            log_util.warn("控制器", "线程池未初始化，无法分发任务。")
             return
 
         self.interrupt_event.clear()
@@ -338,7 +338,7 @@ class ApplicationController:
                         page.set.window.mini()
                         time.sleep(0.1) # 短暂延时避免操作过快
                 except Exception as e:
-                    log_util.error(page_env.user_id, f"最小化窗口 {page_env.user_id} 时出错: {e}")
+                    log_util.error(page_env.user_id, f"最小化窗口 {page_env.user_id} 时出错: {e}", exc_info=True)
 
             log_util.info("控制器", f"批次 {i + 1}/{len(page_chunks)} 已完成。")
         log_util.info("控制器", "任务序列的所有批次已处理完毕。")

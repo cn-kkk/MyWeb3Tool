@@ -72,9 +72,37 @@ class LogUtil:
         self.timer.daemon = True  # 设置为守护线程，以便主程序退出时它也会退出
         self.timer.start()
 
-    def _log(self, level: str, user_id: str, message: str):
+    def _log(self, level: str, user_id: str, message: str, exc_info: bool = False):
+        import traceback
+        import sys
+        import os
+        import inspect
+
+        location = ""
+        stack_trace = ""
+
+        if exc_info:
+            exc_type, exc_value, exc_tb = sys.exc_info()
+            if exc_tb:
+                # 从异常追溯中获取最内层帧
+                frame = traceback.extract_tb(exc_tb)[-1]
+                filename = os.path.basename(frame.filename)
+                lineno = frame.lineno
+                location = f"[{filename}:{lineno}] "
+                stack_trace = "\n" + "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        else:
+            # 为常规日志获取调用位置
+            try:
+                # stack[0] is _log, stack[1] is info/warn/error, stack[2] is the caller
+                caller_frame = inspect.stack()[2]
+                filename = os.path.basename(caller_frame.filename)
+                lineno = caller_frame.lineno
+                location = f"[{filename}:{lineno}] "
+            except (IndexError, AttributeError):
+                pass  # 如果无法获取帧信息，则静默失败
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        full_message = f"[{timestamp}] [{level.upper()}] [{user_id}] {message}"
+        full_message = f"[{timestamp}] [{level.upper()}] [{user_id}] {location}{message}{stack_trace}"
         
         # 1. 立即打印到控制台
         print(full_message)
@@ -97,10 +125,7 @@ class LogUtil:
         self._log("warn", user_id, message)
 
     def error(self, user_id: str, message: str, exc_info=False):
-        if exc_info:
-            import traceback
-            message += "\n" + traceback.format_exc()
-        self._log("error", user_id, message)
+        self._log("error", user_id, message, exc_info=exc_info)
 
     def shutdown(self):
         """在程序退出时调用，确保所有缓冲的日志都被写入。"""

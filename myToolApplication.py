@@ -298,7 +298,7 @@ class HomeTab(QWidget):
             self.readme_display.setHtml(css + html)
             log_util.info("UI", "README.md 已加载到首页。")
         except Exception as e:
-            log_util.error("UI", f"加载 README.md 失败: {e}")
+            log_util.error("UI", f"加载 README.md 失败: {e}", exc_info=True)
             self.readme_display.setText(f"加载 README.md 失败: {e}")
 
 class ConfigTab(QWidget):
