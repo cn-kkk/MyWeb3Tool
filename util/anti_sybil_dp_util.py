@@ -46,7 +46,7 @@ class AntiSybilDpUtil:
         """
         人性化的短等待，模拟思考或网络延迟。
         """
-        delay = random.uniform(2, 4)
+        delay = random.uniform(3, 5)
         time.sleep(delay)
 
     @staticmethod

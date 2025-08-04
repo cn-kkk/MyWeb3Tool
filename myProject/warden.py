@@ -4,6 +4,7 @@ from datetime import datetime
 from util.anti_sybil_dp_util import AntiSybilDpUtil
 from util.log_util import log_util
 from annotation.task_annotation import task_annotation
+from util.okx_wallet_util import OKXWalletUtil
 
 
 class WardenScript:
@@ -23,6 +24,7 @@ class WardenScript:
         self.browser = browser
         self.user_id = user_id
         self.window_height = window_height
+        self.okx_util = OKXWalletUtil()
 
         log_util.info(self.user_id, f"任务开始: 初始化项目 {self.project_name}")
         try:
@@ -44,9 +46,19 @@ class WardenScript:
             else:
                 self.page = self.browser.new_tab(self.WARDEN_URL)
 
-            # 步骤3: 等待页面加载完成并执行人性化操作
+            # 步骤3: 等待页面加载并检查是否需要重新登录
             self.page.wait.load_start()
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.human_long_wait()
+            
+            # 新增逻辑：检查URL是否为认证页面
+            if "auth" in self.page.url:
+                self.okx_util.click_OKX_in_selector(self.browser, self.page, self.user_id)
+                AntiSybilDpUtil.human_long_wait()
+                # 重新验证URL是否已离开auth页面
+                if "auth" in self.page.url:
+                    raise Exception("尝试重新登录后，页面仍停留在认证页，初始化失败。")
+
+            # 步骤4: 执行常规的人性化操作
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
             AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
@@ -73,8 +85,12 @@ class WardenScript:
             else:
                 chat_page = self.browser.new_tab(self.WARDEN_AI_CHAT_URL)
 
-            chat_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
+
+            # 新增逻辑：检查URL是否为认证页面
+            if "auth" in chat_page.url:
+                self.okx_util.click_OKX_in_selector(self.browser, chat_page, self.user_id)
+                AntiSybilDpUtil.human_long_wait()
 
             # 步骤2: 生成并输入消息
             today = datetime.now()
@@ -118,8 +134,15 @@ class WardenScript:
             else:
                 self.page = self.browser.new_tab(self.WARDEN_URL)
 
-            self.page.wait.load_start()
-            AntiSybilDpUtil.human_long_wait()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 新增逻辑：检查URL是否为认证页面
+            if "auth" in self.page.url:
+                self.okx_util.click_OKX_in_selector(self.browser, self.page, self.user_id)
+                AntiSybilDpUtil.human_short_wait()
+                # 认证完会回到dashboard页面，再次跳转回earn页面
+                self.page = self.browser.new_tab(self.WARDEN_URL)
+                AntiSybilDpUtil.human_short_wait()
 
             # 步骤2: 滚动并点击游戏入口
             self.page.scroll.down(800)
