@@ -2,9 +2,6 @@ import os
 import importlib.util
 from time import sleep
 
-import win32gui
-import win32con
-import win32process
 import inspect
 import pyautogui
 import time
@@ -109,38 +106,47 @@ class ApplicationController:
         """将一批浏览器窗口以网格状排列在屏幕上。"""
         log_util.info("控制器", f"正在以网格形式排列 {len(page_envs_batch)} 个窗口。")
 
-        # 直接计算win32gui需要的物理像素坐标
-        taskbar_physical_height = int(60 * self.scale_factor) # 任务栏高度
-        gap_physical_y = int(10 * self.scale_factor)
-        
-        width = int(self.screen_width // 2)
-        self.window_height = int((self.screen_height - taskbar_physical_height) // 2)
+        taskbar_height = 80  # 任务栏的估计逻辑高度
+        gap_y = 10          # 窗口之间的垂直逻辑间隙
+
+        # 1. 基于pyautogui获取的逻辑分辨率计算窗口的逻辑尺寸和位置
+        logical_width = self.screen_width // 2
+        logical_height = (self.screen_height - taskbar_height) // 2
+        self.window_height = logical_height # 保存逻辑高度，供业务脚本使用
 
         positions = [
-            {"x": 0, "y": 0, "width": width, "height": self.window_height},
-            {"x": width, "y": 0, "width": width, "height": self.window_height},
-            {"x": 0, "y": self.window_height + gap_physical_y, "width": width, "height": self.window_height},
-            {"x": width, "y": self.window_height + gap_physical_y, "width": width, "height": self.window_height}
+            {"x": 0, "y": 0},
+            {"x": logical_width, "y": 0},
+            {"x": 0, "y": logical_height + gap_y},
+            {"x": logical_width, "y": logical_height + gap_y}
         ]
 
         for i, page_env in enumerate(page_envs_batch):
-            if i >= len(positions): continue
+            if i >= len(positions):
+                continue
+            
             pos = positions[i]
-            sleep(0.1)
+            browser = page_env.browser
+            page = browser.get_tab()
+            if not page:
+                log_util.warn(page_env.user_id, "浏览器中没有活动的标签页，无法设置窗口大小。")
+                continue
+
+            # 2. 根据DPI缩放比例，将逻辑坐标和尺寸转换为API需要的实际值（通过除法）
+            actual_x = int(pos["x"] / self.scale_factor)
+            actual_y = int(pos["y"] / self.scale_factor)
+            actual_width = int(logical_width / self.scale_factor)
+            actual_height = int(logical_height / self.scale_factor)
+
             try:
-                found_hwnd = self._find_hwnd_for_page_env(page_env)
-
-                if found_hwnd:
-                    # 采用分步、强健的序列来确保窗口被正确恢复、移动和置顶
-                    win32gui.ShowWindow(found_hwnd, win32con.SW_SHOWNORMAL)
-                    time.sleep(0.1) # 缩短等待时间，因为我们只移动，不抢焦点
-                    win32gui.SetWindowPos(found_hwnd, win32con.HWND_TOPMOST, pos["x"], pos["y"], pos["width"], pos["height"], 0)
-                    win32gui.SetWindowPos(found_hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
-                else:
-                    log_util.warn(page_env.user_id, f"未能通过智能匹配找到窗口，已跳过排列。")
-
+                # 使用DrissionPage的API来恢复、设置大小和位置
+                page.set.window.normal()
+                time.sleep(0.1)
+                page.set.window.size(width=actual_width, height=actual_height)
+                time.sleep(0.1)
+                page.set.window.location(x=actual_x, y=actual_y)
             except Exception as e:
-                log_util.error(page_env.user_id, f"排列窗口时发生错误: {e}")
+                log_util.error(page_env.user_id, f"使用DrissionPage排列窗口时发生错误: {e}")
 
 
     def initialize_app(self):
@@ -271,37 +277,6 @@ class ApplicationController:
         log_util.info("控制器", f"已为 {N} 个浏览器生成了独一无二或近似独一无二的任务分配方案。")
         return assignments
 
-    def _find_hwnd_for_page_env(self, page_env: DrissionPageEnv) -> int | None:
-        """根据 DrissionPageEnv 的进程ID (PID) 查找并返回其对应的窗口句柄 (hwnd)。"""
-        try:
-            pid = page_env.browser.process_id
-            if not pid:
-                log_util.warn(page_env.user_id, "无法获取浏览器进程PID，跳过窗口查找。")
-                return None
-
-            all_windows = []
-            def enum_windows_callback(hwnd, _):
-                if win32gui.IsWindowVisible(hwnd):
-                    _, found_pid = win32process.GetWindowThreadProcessId(hwnd)
-                    if found_pid == pid:
-                        # 确认是主窗口，而不是某个子窗口或对话框
-                        # SunBrowser/Chrome的主窗口类名通常是 "Chrome_WidgetWin_1"
-                        class_name = win32gui.GetClassName(hwnd)
-                        if class_name == "Chrome_WidgetWin_1":
-                            all_windows.append(hwnd)
-            
-            win32gui.EnumWindows(enum_windows_callback, None)
-
-            if all_windows:
-                return all_windows[0] # 通常一个进程只有一个主窗口
-            else:
-                log_util.warn(page_env.user_id, f"未能根据PID {pid} 找到匹配的浏览器主窗口。")
-                return None
-                
-        except Exception as e:
-            log_util.error(page_env.user_id, f"通过PID查找窗口句柄时发生严重错误: {e}", exc_info=True)
-            return None
-
     def dispatch_sequence(self, sequence: list[dict]):
         """接收UI层的任务序列，并将其分发到多个浏览器实例中并行执行。"""
         log_util.info("控制器", f"接收到任务分发请求，序列长度: {len(sequence)}。")
@@ -358,9 +333,9 @@ class ApplicationController:
             # 批次任务完成后，最小化所有相关窗口
             for page_env in chunk:
                 try:
-                    hwnd = self._find_hwnd_for_page_env(page_env)
-                    if hwnd:
-                        win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+                    page = page_env.browser.get_tab()
+                    if page:
+                        page.set.window.mini()
                         time.sleep(0.1) # 短暂延时避免操作过快
                 except Exception as e:
                     log_util.error(page_env.user_id, f"最小化窗口 {page_env.user_id} 时出错: {e}")
