@@ -458,10 +458,11 @@ class PharosScript:
 
             # 步骤5: 点击最终的“Send PHRS”按钮
             final_send_button = self.page.ele('xpath://button[text()="Send PHRS"]', timeout=10) # type: ignore
-            if not final_send_button or not final_send_button.states.is_displayed:
+            if not final_send_button or not final_send_button.states.is_clickable:
                 log_util.error(self.user_id, "发送代币任务失败：未找到'Send PHRS'按钮。")
                 return False
-            final_send_button.click()
+            # 按钮在页面之外，又不能滚动去显示按钮，只能js
+            final_send_button.run_js('this.click()')
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤6: 处理钱包确认

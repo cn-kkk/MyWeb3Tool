@@ -3,15 +3,14 @@ import os
 import sys
 import time
 
-# 将项目根目录添加到sys.path，以解决模块导入问题
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 from DrissionPage import ChromiumPage, ChromiumOptions
 from util.log_util import log_util
 from config import AppConfig
 
+# 将项目根目录添加到sys.path，以解决模块导入问题
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 class DrissionPageEnv:
     """
