@@ -4,7 +4,7 @@ import os
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QListWidget, 
     QTextEdit, QPushButton, QLabel, QPlainTextEdit, 
-    QStackedWidget, QMessageBox,
+    QStackedWidget, QMessageBox, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem
 )
@@ -12,7 +12,9 @@ from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject
 from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon
 
 # 导入后端控制器和日志工具
-from applicationController import app_controller
+from backend.smart_controller import SmartController
+
+app_controller = SmartController()
 from util.log_util import log_util
 
 from config import AppConfig
@@ -33,7 +35,7 @@ class BackendInitializationThread(QThread):
 
     def run(self):
         try:
-            self.controller.initialize_app()
+            self.projects = self.controller.discover_projects()
             self.initialization_done.emit(True, "后端初始化成功.")
         except Exception as e:
             log_util.error("Backend", f"Backend initialization failed: {e}", exc_info=True)
@@ -369,14 +371,15 @@ class TaskDispatchThread(QThread):
     """专门用于在后台分发任务并等待其完成的线程，以防阻塞UI主线程"""
     finished = pyqtSignal() # Signal to indicate completion
 
-    def __init__(self, controller, sequence):
+    def __init__(self, controller, sequence, concurrent_browsers):
         super().__init__()
         self.controller = controller
         self.sequence = sequence
+        self.concurrent_browsers = concurrent_browsers
 
     def run(self):
         try:
-            self.controller.dispatch_sequence(self.sequence)
+            self.controller.dispatch_sequence(self.sequence, self.concurrent_browsers)
         finally:
             self.finished.emit()
 
@@ -396,13 +399,53 @@ class ProjectTab(QWidget):
         # --- Left Panel: Available Projects and Tasks ---
         left_panel = QWidget()
         left_layout = QHBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        # --- Combined Sidebar Panel ---
+        sidebar_container = QWidget()
+        sidebar_container.setFixedWidth(260)
+        sidebar_container_layout = QVBoxLayout(sidebar_container)
+        sidebar_container_layout.setContentsMargins(15, 15, 15, 15)
+        sidebar_container_layout.setSpacing(15)
+        sidebar_container_layout.setAlignment(Qt.AlignTop)
         
+        # Concurrency settings
+        concurrency_layout = QHBoxLayout()
+        concurrency_label = QLabel("<b>最多同步浏览器:</b>")
+        concurrency_label.setStyleSheet("font-size: 15px;")
+        concurrency_layout.addWidget(concurrency_label)
+        self.concurrency_combo = QComboBox()
+        self.concurrency_combo.addItems(["2", "4", "6", "8"])
+        self.concurrency_combo.setCurrentText("4")
+        self.concurrency_combo.setFixedWidth(65)
+        concurrency_layout.addWidget(self.concurrency_combo)
+        concurrency_layout.addWidget(QLabel("个"))
+        concurrency_layout.addStretch()
+        sidebar_container_layout.addLayout(concurrency_layout)
+
+        # Horizontal Separator
+        h_separator = QFrame()
+        h_separator.setFrameShape(QFrame.HLine)
+        h_separator.setStyleSheet("border: none; border-top: 1px solid #e8e8e8;")
+        sidebar_container_layout.addWidget(h_separator)
+
+        # Project list
         self.sidebar = StyledSidebar([], 200)
         self.sidebar.currentRowChanged.connect(self.on_sidebar_changed)
-        
+        sidebar_container_layout.addWidget(self.sidebar)
+
+        # --- Vertical Separator ---
+        v_separator = QFrame()
+        v_separator.setFrameShape(QFrame.VLine)
+        v_separator.setStyleSheet("border: none; border-left: 1px solid #e8e8e8;")
+
+        # --- Content Stack ---
         self.content_stack = QStackedWidget()
 
-        left_layout.addWidget(self.sidebar)
+        # Final assembly
+        left_layout.addWidget(sidebar_container)
+        left_layout.addWidget(v_separator)
         left_layout.addWidget(self.content_stack)
         
         # --- Right Panel: Task Sequence ---
@@ -422,7 +465,7 @@ class ProjectTab(QWidget):
         action_layout = QHBoxLayout()
         self.stop_btn = QPushButton("停止执行")
         self.stop_btn.setStyleSheet("background-color: #d35400; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
-        self.stop_btn.clicked.connect(app_controller.interrupt_tasks)
+        self.stop_btn.clicked.connect(self.on_stop_clicked)
         self.stop_btn.setEnabled(False) # Initially disabled
 
         self.run_seq_btn = QPushButton("执行序列")
@@ -591,7 +634,8 @@ class ProjectTab(QWidget):
         log_util.info("UI", f"任务序列已提交给后端执行，共 {len(sequence_data)} 个任务。")
         QMessageBox.information(self, "任务开始", f"开始执行任务。")
         
-        self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data)
+        concurrent_browsers = int(self.concurrency_combo.currentText())
+        self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data, concurrent_browsers)
         self.dispatch_thread.finished.connect(self.on_sequence_finished)
         self.dispatch_thread.start()
 
@@ -662,7 +706,8 @@ class MyToolApplication(QWidget):
     def on_backend_initialized(self, success, message):
         log_util.info("UI", f"后端初始化结果: {message}")
         if success:
-            self.project_tab.populate_projects(self.controller.projects)
+            projects = self.init_thread.projects # 从线程获取项目
+            self.project_tab.populate_projects(projects)
         else: QMessageBox.critical(self, "后端初始化失败", message)
         
     def on_tab_bar_clicked(self, index):

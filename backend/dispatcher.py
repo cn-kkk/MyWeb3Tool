@@ -45,6 +45,7 @@ class Dispatcher:
         self.concurrency_semaphore = threading.Semaphore(self.concurrent_browsers)
         self.browser_ids = []
         self.assignments = []
+        self.assignment_lock = threading.Lock()  # New lock for thread-safe list manipulation
 
     def _generate_all_assignments(self):
         """根据原始任务序列，生成所有分配方案。"""
@@ -141,10 +142,13 @@ class Dispatcher:
             script_instances = {}
             for task in assignment:
                 if self.interrupt_event.is_set():
+                    self.log.warn(user_id, f"[线程-{threading.get_ident()}] 检测到中断信号，任务序列已中止。")
                     break
 
                 task_name = task.get("task_name")
                 project_name_inferred = task_name.split('_task_')[0].capitalize()
+                
+                # Get the project class from the map
                 project_class = self.projects_map.get(project_name_inferred)
 
                 if not project_class:
@@ -152,16 +156,26 @@ class Dispatcher:
                     result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), details)
                 else:
                     try:
+                        # Initialize project script if it's the first time we see it for this worker
                         if project_name_inferred not in script_instances:
+                            self.log.info(user_id, f"[线程-{threading.get_ident()}] 首次执行项目 '{project_name_inferred}'，正在初始化...")
                             script_instances[project_name_inferred] = project_class(browser=browser, user_id=user_id)
                         
                         script_instance = script_instances[project_name_inferred]
                         task_method = getattr(script_instance, task_name)
-                        task_method()
-                        result = TaskResult(user_id, task_name, "SUCCESS", datetime.now(), "任务成功完成。")
+                        
+                        task_return_value = task_method()
+
+                        if task_return_value is False:
+                            details = "任务方法主动返回False。"
+                            result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), details)
+                        else:
+                            result = TaskResult(user_id, task_name, "SUCCESS", datetime.now(), "任务成功完成。")
+
                     except Exception as e:
-                        details = f"执行任务时发生异常: {e}\n{traceback.format_exc()}"
-                        result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), details)
+                        user_friendly_details = str(e)
+                        self.log.error(f"工作线程 {threading.get_ident()}", f"任务 {task_name} for {user_id} 发生异常: \n{traceback.format_exc()}")
+                        result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), user_friendly_details)
 
                 with self.results_lock:
                     self.results_list.append(result)
@@ -172,6 +186,15 @@ class Dispatcher:
             if browser: browser.quit()
             self.concurrency_semaphore.release()
 
+    def shutdown(self):
+        """Sets the interrupt event and clears pending assignments to stop all tasks."""
+        self.log.info("调度器", "接收到关闭信号，正在终止所有任务...")
+        self.interrupt_event.set()
+        with self.assignment_lock:
+            self.log.info("调度器", "清空所有待执行的任务分配。")
+            self.browser_ids.clear()
+            self.assignments.clear()
+
     def execute(self):
         """调度器的主执行方法。"""
         self.browser_ids = AdsBrowserUtil.get_configured_user_ids()
@@ -181,12 +204,26 @@ class Dispatcher:
 
         self._generate_all_assignments()
 
-        for i, user_id in enumerate(self.browser_ids):
-            if self.interrupt_event.is_set():
-                break
-
+        i = 0
+        while True:
+            # 1. Wait for a free slot first. This can block.
             self.concurrency_semaphore.acquire()
 
+            # 2. After waking up, check if we should proceed under a lock.
+            with self.assignment_lock:
+                if i >= len(self.browser_ids) or self.interrupt_event.is_set():
+                    # Woke up, but told to stop. Release the semaphore and exit the loop.
+                    self.concurrency_semaphore.release()
+                    self.log.info("调度器", "所有任务已分发完毕或收到中断信号，主调度循环结束。")
+                    break
+                
+                # 3. Get the task data just-in-time.
+                user_id = self.browser_ids[i]
+                assignment = self.assignments[i]
+                worker_id = i
+                i += 1
+
+            # 4. Proceed to launch the task with fresh data.
             try:
                 browser = AdsBrowserUtil.start_browser_if_not_running(user_id)
                 if not browser: 
@@ -194,9 +231,7 @@ class Dispatcher:
                     self.concurrency_semaphore.release()
                     continue
 
-                self._arrange_window(browser, worker_id=i)
-                
-                assignment = self.assignments[i]
+                self._arrange_window(browser, worker_id=worker_id)
                 
                 self.executor.submit(self._worker, browser, assignment, user_id)
             
