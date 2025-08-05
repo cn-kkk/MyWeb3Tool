@@ -9,6 +9,7 @@ from util.log_util import log_util
 from config import AppConfig
 from util.socks5_util import Socks5Util
 from util.wallet_util import WalletUtil
+from annotation.task_annotation import task_annotation  # 打包时包含注解模块
 
 class SmartController:
     """

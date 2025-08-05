@@ -52,22 +52,25 @@ class OKXWalletUtil:
             # 循环处理，直到钱包页面关闭
             while wallet_page.tab_id in browser.tab_ids:
                 # 优先处理“取消交易”弹窗，避免阻塞
-                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=1)
+                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=3)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
+                    AntiSybilDpUtil.human_short_wait()
                     cancel_tx_button.click()
                     AntiSybilDpUtil.human_short_wait()
                     continue  # 继续循环，检查页面是否关闭或有新弹窗
 
                 action_button = wallet_page.ele(
-                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=5
+                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=3
                 )
                 if action_button and action_button.states.is_clickable:
+                    AntiSybilDpUtil.human_short_wait()
                     action_button.click()
                     AntiSybilDpUtil.human_long_wait()
                     continue
 
-                cancel_button = wallet_page.ele('text:取消', timeout=1)
+                cancel_button = wallet_page.ele('text:取消', timeout=3)
                 if cancel_button and cancel_button.states.is_clickable:
+                    AntiSybilDpUtil.human_short_wait()
                     cancel_button.click()
                     raise Exception("钱包当前只能点击取消。")
                 
@@ -116,13 +119,15 @@ class OKXWalletUtil:
                     AntiSybilDpUtil.human_short_wait()
 
                 # 解锁后，检查并处理可能出现的“取消交易”弹窗
-                cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=2)
+                cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=3)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
+                    AntiSybilDpUtil.human_short_wait()
                     cancel_tx_button.click()
                     AntiSybilDpUtil.human_short_wait()
 
-                cancel_button = wallet_tab.ele('text:取消', timeout=2)
+                cancel_button = wallet_tab.ele('text:取消', timeout=3)
                 if cancel_button and cancel_tx_button.states.is_clickable:
+                    AntiSybilDpUtil.human_short_wait()
                     cancel_button.click()
                     AntiSybilDpUtil.human_short_wait()
 

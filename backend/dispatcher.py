@@ -140,6 +140,14 @@ class Dispatcher:
     def _worker(self, browser, assignment, user_id):
         """包含原BrowserWorker核心逻辑的工作函数，由线程池执行。"""
         try:
+            # 从线程名中提取ID并排列窗口
+            try:
+                thread_name = threading.current_thread().name
+                worker_id = int(thread_name.split('_')[-1])
+                self._arrange_window(browser, worker_id)
+            except Exception as e:
+                self.log.error(user_id, f"排列窗口失败: {e}", exc_info=True)
+
             # 1. 首先解锁钱包
             try:
                 okx_util = OKXWalletUtil()
@@ -240,8 +248,6 @@ class Dispatcher:
                     self.concurrency_semaphore.release()
                     continue
 
-                self._arrange_window(browser, worker_id=worker_id)
-                
                 self.executor.submit(self._worker, browser, assignment, user_id)
             
             except Exception as e:
