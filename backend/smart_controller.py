@@ -12,7 +12,7 @@ from util.wallet_util import WalletUtil
 
 class SmartController:
     """
-    最终版的、最简化的智能控制器，作为系统的统一入口。
+    智能控制器，作为系统的统一入口。
     """
     def __init__(self):
         self.log = log_util
@@ -20,7 +20,7 @@ class SmartController:
         self.interrupt_event = threading.Event()
         self.task_results = []
         self.results_lock = threading.Lock()
-        self.dispatcher = None  # Add dispatcher instance holder
+        self.dispatcher = None  # 持有调度器实例
 
     def discover_projects(self):
         """扫描、加载并解析所有项目脚本，返回UI友好的数据结构。"""
@@ -44,14 +44,13 @@ class SmartController:
                                 project_name = getattr(obj, "project_name", name).capitalize()
                                 self.projects_map[project_name] = obj
 
-                                # --- Replicate old controller's logic for UI ---
-                                # 1. Get Project Description (robustly)
+                                # 1. 获取项目描述
                                 project_desc = getattr(obj, "project_desc", None)
                                 if not project_desc:
                                     project_desc = inspect.getdoc(obj)
-                                project_desc = (project_desc or "没有提供项目描述。").strip()
+                                project_desc = (project_desc or "没有提供项目描述").strip()
 
-                                # 2. Get Tasks (replicating old logic: `_task_` in name)
+                                # 2. 通过方法名中的 `_task_` 发现任务
                                 tasks = []
                                 for method_name in dir(obj):
                                     if "_task_" in method_name:
@@ -60,7 +59,7 @@ class SmartController:
                                             limit = getattr(method_obj, '_task_limit', None) or getattr(method_obj, '_task_annotation', None)
                                             tasks.append({
                                                 "name": method_name,
-                                                "desc": (inspect.getdoc(method_obj) or "没有提供任务描述。").strip(),
+                                                "desc": (inspect.getdoc(method_obj) or "没有提供任务描述").strip(),
                                                 "limit": limit
                                             })
 
@@ -74,13 +73,6 @@ class SmartController:
                     self.log.error("智能控制器", f"加载或解析项目脚本 {fname} 失败: {e}", exc_info=True)
         
         return discovered_projects
-
-    def interrupt_tasks(self):
-        """向所有工作线程和调度器发送中断信号。"""
-        self.log.info("智能控制器", "接收到中断信号，正在终止所有操作...")
-        self.interrupt_event.set()
-        if self.dispatcher:
-            self.dispatcher.shutdown()
 
     def shutdown(self):
         """向所有工作线程和调度器发送中断信号。"""

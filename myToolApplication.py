@@ -660,7 +660,7 @@ class ProjectTab(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             log_util.info("UI", "用户确认停止，正在向后端发送中断信号...")
-            app_controller.interrupt_tasks()
+            app_controller.shutdown()
         else:
             log_util.info("UI", "用户取消了停止操作。")
 

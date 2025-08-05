@@ -173,7 +173,7 @@ class AdsBrowserUtil:
                 data = resp.json()
 
                 if data.get("code") == 0 and data.get("data", {}).get("ws", {}).get("selenium"):
-                    time.sleep(3)
+                    time.sleep(2)
                     selenium_ws = data["data"]["ws"]["selenium"]
                 else:
                     api_msg = data.get("msg", "无来自API的消息。")
