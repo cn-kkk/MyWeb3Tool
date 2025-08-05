@@ -26,7 +26,6 @@ class WardenScript:
         self.window_height = window_height
         self.okx_util = OKXWalletUtil()
 
-        log_util.info(self.user_id, f"任务开始: 初始化项目 {self.project_name}")
         try:
             # 步骤1: 为浏览器实例注入反女巫检测脚本
             page_for_cdp = self.browser.get_tab()

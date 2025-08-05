@@ -30,7 +30,6 @@ class PharosScript:
         self.wallet_util = WalletUtil()
         self.window_height = window_height
 
-        log_util.info(self.user_id, f"开始初始化项目: {self.project_name}")
         try:
             # 步骤1: 为浏览器实例注入反女巫检测脚本
             page_for_cdp = self.browser.get_tab()
