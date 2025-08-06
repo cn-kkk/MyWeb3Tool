@@ -33,13 +33,12 @@ class Dispatcher:
     调度器，运行在主线程。
     它使用内置的ThreadPoolExecutor和信号量来管理并发。
     """
-    def __init__(self, sequence, concurrent_browsers, projects_map, results_list, results_lock, interrupt_event):
+    def __init__(self, sequence, concurrent_browsers, projects_map, result_queue, interrupt_event):
         self.sequence = sequence
         self.concurrent_browsers = concurrent_browsers
         self.projects_map = projects_map
         self.scale_factor = get_windows_dpi_scaling()
-        self.results_list = results_list
-        self.results_lock = results_lock
+        self.result_queue = result_queue
         self.interrupt_event = interrupt_event
         self.log = log_util
         self.screen_width, self.screen_height = pyautogui.size()
@@ -48,6 +47,7 @@ class Dispatcher:
         self.browser_ids = []
         self.assignments = []
         self.assignment_lock = threading.Lock()  # 用于线程安全地操作任务列表
+        self.total_task_count = 0
 
     def _generate_all_assignments(self):
         """根据原始任务序列，生成所有分配方案。"""
@@ -153,7 +153,6 @@ class Dispatcher:
             try:
                 okx_util = OKXWalletUtil()
                 okx_util.open_and_unlock_drission(browser, user_id)
-                self.log.info(user_id, "钱包初始化解锁成功。" )
             except Exception as e:
                 self.log.error(user_id, f"钱包初始化解锁失败，任务序列中止: {e}", exc_info=True)
                 return  # 如果钱包解锁失败，则中止此工作线程的所有任务
@@ -162,7 +161,7 @@ class Dispatcher:
             script_instances = {}
             for task in assignment:
                 if self.interrupt_event.is_set():
-                    self.log.warn(user_id, "检测到中断信号，任务序列已中止。" )
+                    self.log.warn(user_id, "检测到中断信号，任务序列已中止。")
                     break
 
                 task_name = task.get("task_name")
@@ -172,11 +171,10 @@ class Dispatcher:
 
                 if not project_class:
                     details = f"无法从任务名 '{task_name}' 推断出有效的项目类。"
-                    result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), details)
+                    result = TaskResult(browser_id=user_id, task_name=task_name, status="FAILURE", timestamp=datetime.now(), details=details)
                 else:
                     try:
                         if project_name_inferred not in script_instances:
-                            self.log.info(user_id, f"首次执行项目 '{project_name_inferred}'，正在初始化...")
                             script_instances[project_name_inferred] = project_class(browser=browser, user_id=user_id)
                         
                         script_instance = script_instances[project_name_inferred]
@@ -186,17 +184,16 @@ class Dispatcher:
 
                         if task_return_value is False:
                             details = "任务方法主动返回False。"
-                            result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), details)
+                            result = TaskResult(browser_id=user_id, task_name=task_name, status="FAILURE", timestamp=datetime.now(), details=details)
                         else:
-                            result = TaskResult(user_id, task_name, "SUCCESS", datetime.now(), "任务成功完成。" )
+                            result = TaskResult(browser_id=user_id, task_name=task_name, status="SUCCESS", timestamp=datetime.now(), details="任务成功完成。")
 
                     except Exception as e:
                         user_friendly_details = str(e)
-                        self.log.error(user_id, f"任务 {task_name} 发生异常: \n{traceback.format_exc()}")
-                        result = TaskResult(user_id, task_name, "FAILURE", datetime.now(), user_friendly_details)
+                        self.log.error(user_id, f"任务 {task_name} 发生异常: {traceback.format_exc()}")
+                        result = TaskResult(browser_id=user_id, task_name=task_name, status="FAILURE", timestamp=datetime.now(), details=user_friendly_details)
 
-                with self.results_lock:
-                    self.results_list.append(result)
+                self.result_queue.put(result)
 
         except Exception as e:
             self.log.error(user_id, f"处理工作包时发生严重错误: {e}", exc_info=True)
@@ -209,7 +206,7 @@ class Dispatcher:
         self.log.info("调度器", "接收到关闭信号，正在终止所有任务...")
         self.interrupt_event.set()
         with self.assignment_lock:
-            self.log.info("调度器", "清空所有待执行的任务分配。" )
+            self.log.info("调度器", "清空所有待执行的任务分配。")
             self.browser_ids.clear()
             self.assignments.clear()
 
@@ -217,17 +214,18 @@ class Dispatcher:
         """调度器的主执行方法。"""
         all_browser_ids = AdsBrowserUtil.get_configured_user_ids()
         if not all_browser_ids:
-            self.log.error("调度器", "未在配置文件中找到任何浏览器ID，调度中止。" )
+            self.log.error("调度器", "未在配置文件中找到任何浏览器ID，调度中止。")
             return
 
         # 预检1: 检查重复的浏览器ID
         id_counts = Counter(all_browser_ids)
         duplicates = [item for item, count in id_counts.items() if count > 1]
         if duplicates:
-            self.log.error("调度器", f"配置文件中存在重复的浏览器ID: {duplicates}。请修正后重试。调度中止。" )
+            self.log.error("调度器", f"配置文件中存在重复的浏览器ID: {duplicates}。请修正后重试。调度中止。")
             return
         
         self.browser_ids = all_browser_ids
+        self.total_task_count = len(all_browser_ids) * sum(task.get('repetition', 1) for task in self.sequence)
 
         self._generate_all_assignments()
 
@@ -241,7 +239,7 @@ class Dispatcher:
                 if i >= len(self.browser_ids) or self.interrupt_event.is_set():
                     # 如果被唤醒但是被告知要停止，则释放信号量并退出循环。
                     self.concurrency_semaphore.release()
-                    self.log.info("调度器", "所有任务已分发完毕或收到中断信号，主调度循环结束。" )
+                    self.log.info("调度器", "所有任务已分发完毕或收到中断信号，主调度循环结束。")
                     break
                 
                 # 3. 实时获取任务数据。
@@ -254,7 +252,7 @@ class Dispatcher:
             try:
                 browser = AdsBrowserUtil.start_browser_if_not_running(user_id)
                 if not browser: 
-                    self.log.error("调度器", f"获取浏览器实例 {user_id} 失败，跳过。" )
+                    self.log.error("调度器", f"获取浏览器实例 {user_id} 失败，跳过。")
                     self.concurrency_semaphore.release()
                     continue
 
@@ -266,3 +264,5 @@ class Dispatcher:
                 continue
         
         self.executor.shutdown(wait=True)
+
+    

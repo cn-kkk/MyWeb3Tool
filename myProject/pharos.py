@@ -77,7 +77,6 @@ class PharosScript:
                 # 最终确认钱包连接
                 self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 
-            log_util.info(self.user_id, f"—————— 项目 '{self.project_name}' 初始化成功 ——————")
         except Exception as e:
             log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}", exc_info=True)
             raise

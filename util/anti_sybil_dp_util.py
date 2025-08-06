@@ -139,7 +139,6 @@ class AntiSybilDpUtil:
 
                 # 调用JS进行安全检查
                 if page.run_js(js_is_safe_to_click, x, y):
-                    log_util.info(user_id, f"找到安全点击坐标 (尝试 {i+1}/5): x={x}, y={y}")
                     page.actions.move_to(
                         (x, y), duration=random.uniform(0.2, 0.6)
                     ).click()

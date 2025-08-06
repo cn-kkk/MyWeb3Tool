@@ -96,7 +96,6 @@ class WardenScript:
             date_str = today.strftime('%Y年%m月%d日')
             weekday = today.isoweekday()
             message = f"今天是{date_str}，我今天要赚{weekday}个sol"
-            log_util.info(self.user_id, f"准备输入消息: {message}")
 
             # 通过ID精确定位输入框并输入
             input_box = chat_page.ele('#chat', timeout=20)

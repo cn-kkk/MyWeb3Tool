@@ -8,8 +8,8 @@ from PyQt5.QtWidgets import (
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject
-from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject, QTimer
+from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon, QMovie
 
 # 导入后端控制器和日志工具
 from backend.smart_controller import SmartController
@@ -96,24 +96,53 @@ class EditModeDelegate(QStyledItemDelegate):
             painter.restore()
         super().paint(painter, option, index)
 
-class ConfigTableWidget(QTableWidget):
-    """配置表格组件"""
-    header_key_map = { "ID": "id", "IP地址": "ip", "端口": "port", "用户名": "username", "密码": "password", "私钥": "privateKey", "地址": "address" }
-    def __init__(self, headers, data=None):
+class StyledTableWidget(QTableWidget):
+    """一个带有预设样式的可复用表格组件基类"""
+    def __init__(self, headers):
         super().__init__()
         self.headers = headers
-        self._editing = False
-        self.setItemDelegate(EditModeDelegate(self, lambda: self._editing))
-        self.setStyle(NoFocusRectStyle(self.style()))
         self.setColumnCount(len(headers))
         self.setHorizontalHeaderLabels(headers)
         self.verticalHeader().setVisible(False)
+        self.setStyle(NoFocusRectStyle(self.style()))
         self.setStyleSheet('''
-            QTableWidget { background-color: white; border: 1px solid #d0d0d0; border-radius: 12px; gridline-color: #e0e0e0; }
-            QTableWidget::item { padding: 8px; border: none; border-radius: 8px; background: transparent; }
-            QTableWidget::item:selected { background: transparent; border: 2px solid orange; color: #333; }
-            QTableWidget::item:focus { outline: none; }
-            QHeaderView::section { background-color: #f8f9fa; padding: 8px; border: none; border-bottom: 1px solid #d0d0d0; font-weight: bold; font-size: 15px; }
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #d0d0d0;
+                border-radius: 12px;
+                gridline-color: #e0e0e0;
+            }
+            QTableWidget::item {
+                padding: 10px;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #e6f7ff;
+                color: #333;
+            }
+            QHeaderView::section {
+                background-color: #f8f9fa;
+                padding: 10px;
+                border: none;
+                border-bottom: 1px solid #d0d0d0;
+                font-weight: bold;
+                font-size: 14px;
+            }
+        ''')
+
+class ConfigTableWidget(StyledTableWidget):
+    """配置表格组件，现在继承自StyledTableWidget"""
+    header_key_map = { "ID": "id", "IP地址": "ip", "端口": "port", "用户名": "username", "密码": "password", "私钥": "privateKey", "地址": "address" }
+    def __init__(self, headers, data=None):
+        super().__init__(headers)
+        self._editing = False
+        self.setItemDelegate(EditModeDelegate(self, lambda: self._editing))
+        # 继承了通用样式，但可以添加或覆盖特定样式
+        self.setStyleSheet(self.styleSheet() + '''
+            QTableWidget::item:selected {
+                background: transparent;
+                border: 2px solid orange;
+            }
         ''')
         for i, h in enumerate(headers):
             if h == "ID":
@@ -245,8 +274,9 @@ class WalletConfigWidget(QWidget):
 
 class BrowserConfigWidget(QWidget):
     """浏览器ID配置组件"""
-    def __init__(self):
+    def __init__(self, main_app):
         super().__init__()
+        self.main_app = main_app # 持有主窗口引用
         self.is_editing = False
         self.init_ui()
         self.load_config()
@@ -264,6 +294,9 @@ class BrowserConfigWidget(QWidget):
     def load_config(self):
         content = app_controller.get_browser_configs()
         self.text_edit.setPlainText(content)
+        # 解析并更新主窗口的“全局”变量
+        lines = content.strip().split('\n')
+        self.main_app.loaded_browser_ids = [line.strip() for line in lines[1:] if line.strip()]
     
     def toggle_edit(self):
         self.is_editing = not self.is_editing
@@ -305,8 +338,9 @@ class HomeTab(QWidget):
 
 class ConfigTab(QWidget):
     """配置标签页"""
-    def __init__(self):
+    def __init__(self, main_app):
         super().__init__()
+        self.main_app = main_app # 持有主窗口引用
         self._last_sidebar_index = 0
         self.init_ui()
         
@@ -314,9 +348,12 @@ class ConfigTab(QWidget):
         layout = QHBoxLayout()
         sidebar_items = ["IP配置", "钱包配置", "浏览器ID配置"]; self.sidebar = StyledSidebar(sidebar_items, 200); self.sidebar.currentRowChanged.connect(self.on_sidebar_changed); layout.addWidget(self.sidebar)
         self.content_stack = QStackedWidget()
-        self.ip_config_widget = IPConfigWidget(); self.content_stack.addWidget(self.ip_config_widget)
-        self.wallet_config_widget = WalletConfigWidget(); self.content_stack.addWidget(self.wallet_config_widget)
-        self.browser_config_widget = BrowserConfigWidget(); self.content_stack.addWidget(self.browser_config_widget)
+        self.ip_config_widget = IPConfigWidget()
+        self.content_stack.addWidget(self.ip_config_widget)
+        self.wallet_config_widget = WalletConfigWidget()
+        self.content_stack.addWidget(self.wallet_config_widget)
+        self.browser_config_widget = BrowserConfigWidget(self.main_app) # 传递主窗口引用
+        self.content_stack.addWidget(self.browser_config_widget)
         layout.addWidget(self.content_stack); self.setLayout(layout)
         
     def on_sidebar_changed(self, index):
@@ -369,8 +406,6 @@ class SequenceItemWidget(QWidget):
 
 class TaskDispatchThread(QThread):
     """专门用于在后台分发任务并等待其完成的线程，以防阻塞UI主线程"""
-    finished = pyqtSignal() # Signal to indicate completion
-
     def __init__(self, controller, sequence, concurrent_browsers):
         super().__init__()
         self.controller = controller
@@ -378,18 +413,19 @@ class TaskDispatchThread(QThread):
         self.concurrent_browsers = concurrent_browsers
 
     def run(self):
-        try:
-            self.controller.dispatch_sequence(self.sequence, self.concurrent_browsers)
-        finally:
-            self.finished.emit()
+        self.controller.dispatch_sequence(self.sequence, self.concurrent_browsers)
 
 class ProjectTab(QWidget):
     """项目标签页，采用两栏布局，左侧为可用任务，右侧为任务序列"""
-    def __init__(self):
+    def __init__(self, main_app):
         super().__init__()
+        self.main_app = main_app # 持有主窗口引用
+        self.results_tab = main_app.results_tab # 从主窗口获取结果页引用
         self.project_classes = []
         self.dispatch_thread = None
         self.is_running = False # State lock
+        self.progress_timer = QTimer(self)
+        self.progress_timer.timeout.connect(self.query_progress)
         self.init_ui()
 
     def init_ui(self):
@@ -631,20 +667,42 @@ class ProjectTab(QWidget):
         self.update_button_states()
         app_controller.interrupt_event.clear()
 
+        # --- 组装初始任务数据并更新UI ---
+        browser_ids = self.main_app.loaded_browser_ids
+        initial_tasks = []
+        for task_item in sequence_data:
+            for browser_id in browser_ids:
+                for _ in range(task_item.get('repetition', 1)):
+                    initial_tasks.append({
+                        'browser_id': browser_id,
+                        'task_name': task_item['task_name']
+                    })
+        self.results_tab.populate_initial_tasks(initial_tasks)
+
         log_util.info("UI", f"任务序列已提交给后端执行，共 {len(sequence_data)} 个任务。")
         QMessageBox.information(self, "任务开始", f"开始执行任务。")
         
         concurrent_browsers = int(self.concurrency_combo.currentText())
         self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data, concurrent_browsers)
-        self.dispatch_thread.finished.connect(self.on_sequence_finished)
         self.dispatch_thread.start()
+        self.progress_timer.start(2000) # 每2秒查询一次进度
 
     def on_sequence_finished(self):
+        self.progress_timer.stop()
         self.is_running = False
         self.update_button_states()
         self.sequence_list.clear() # Automatically clear the sequence
         log_util.info("UI", "任务序列已全部执行完毕，并已清空显示列表。")
         QMessageBox.information(self, "任务完成", "任务序列已全部执行完毕。")
+
+    def query_progress(self):
+        progress_data = app_controller.get_task_progress()
+        if progress_data:
+            self.results_tab.update_task_progress(progress_data)
+
+        status = app_controller.get_execution_status()
+        if status['total'] > 0 and status['completed'] >= status['total']:
+            self.on_sequence_finished()
 
     def update_button_states(self):
         self.run_seq_btn.setEnabled(not self.is_running)
@@ -665,13 +723,172 @@ class ProjectTab(QWidget):
             log_util.info("UI", "用户取消了停止操作。")
 
 
+class TotalProgressWidget(QWidget):
+    """"任务总进度"视图的专用控件。"""
+    def __init__(self):
+        super().__init__()
+        self.task_row_map = {}  # 用于快速查找任务对应的行
+        self.init_ui()
 
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        headers = ['序号', '浏览器id', '任务名称', '执行结果', '失败详情', '完成时间']
+        self.table = StyledTableWidget(headers)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        
+        header = self.table.horizontalHeader()
+        self.table.resizeColumnsToContents()
+
+        layout.addWidget(self.table)
+
+    def populate_initial_tasks(self, tasks_data):
+        self.table.setUpdatesEnabled(False) # 优化性能
+        self.table.setRowCount(0)
+        self.task_row_map.clear()
+        self.table.setRowCount(len(tasks_data))
+
+        for i, task in enumerate(tasks_data):
+            browser_id = task['browser_id']
+            task_name = task['task_name']
+
+            # 1. 序号 (居中)
+            seq_item = QTableWidgetItem(str(i + 1))
+            seq_item.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 0, seq_item)
+
+            # 2. 浏览器ID (居中)
+            id_item = QTableWidgetItem(browser_id)
+            id_item.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 1, id_item)
+
+            # 3. 任务名称 (居左)
+            name_item = QTableWidgetItem(task_name)
+            self.table.setItem(i, 2, name_item)
+
+            # 4. 执行结果 (等待中 - 动画)
+            status_label = QLabel()
+            status_label.setAlignment(Qt.AlignCenter)
+            movie = QMovie(os.path.join(AppConfig.BASE_DIR, 'icon', 'loading.gif')) # 假设有一个loading.gif
+            status_label.setMovie(movie)
+            movie.start()
+            self.table.setCellWidget(i, 3, status_label)
+
+            # 5. 失败详情 (居左)
+            details_item = QTableWidgetItem("")
+            self.table.setItem(i, 4, details_item)
+
+            # 6. 完成时间 (居中)
+            time_item = QTableWidgetItem("")
+            time_item.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 5, time_item)
+
+            # 建立索引，用于快速更新
+            self.task_row_map[(browser_id, task_name)] = i
+        
+        self.table.setUpdatesEnabled(True) # 优化性能
+
+    def update_task_progress(self, completed_tasks_data):
+        for browser_id, results in completed_tasks_data.items():
+            for result in results:
+                task_name = result['task_name']
+                key = (browser_id, task_name)
+
+                if key in self.task_row_map:
+                    row = self.task_row_map[key]
+                    
+                    # 移除动画
+                    self.table.setCellWidget(row, 3, None)
+
+                    # 更新状态图标
+                    status_item = QTableWidgetItem()
+                    icon_path = os.path.join(AppConfig.BASE_DIR, 'icon', 'success.png' if result['status'] == 'SUCCESS' else 'failure.png')
+                    status_item.setIcon(QIcon(icon_path))
+                    self.table.setItem(row, 3, status_item)
+
+                    # 更新失败详情和完成时间
+                    self.table.item(row, 4).setText(result['details'])
+                    self.table.item(row, 5).setText(result['timestamp'])
+
+                    # 从map中移除，表示已处理
+                    del self.task_row_map[key]
+
+    def resizeEvent(self, event):
+        """在窗口大小改变时触发，用于动态调整列宽。"""
+        super().resizeEvent(event)
+        self._update_column_widths()
+
+    def _update_column_widths(self):
+        """根据预设百分比更新列宽"""
+        table_width = self.table.viewport().width()
+        if table_width <= 0: return
+
+        # 根据您指定的百分比设置列宽
+        self.table.setColumnWidth(0, int(table_width * 0.10)) # 序号
+        self.table.setColumnWidth(1, int(table_width * 0.15)) # 浏览器id
+        self.table.setColumnWidth(2, int(table_width * 0.20)) # 任务名称
+        self.table.setColumnWidth(3, int(table_width * 0.10)) # 执行结果
+        self.table.setColumnWidth(4, int(table_width * 0.30)) # 失败详情
+        self.table.setColumnWidth(5, int(table_width * 0.15)) # 完成时间
+
+    def showEvent(self, event):
+        """在控件显示时触发，确保初始列宽正确。"""
+        super().showEvent(event)
+        # 使用QTimer.singleShot确保这是在showEvent的最后阶段执行
+        QTimer.singleShot(0, self._update_column_widths)
+
+class ExecutionResultsTab(QWidget):
+    """执行结果标签页，包含侧边栏和内容区域。"""
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # 1. 左侧边栏
+        sidebar_items = ["任务总进度", "已完成的任务", "已失败的任务"]
+        self.sidebar = StyledSidebar(sidebar_items, 220)
+        self.sidebar.currentRowChanged.connect(self.on_sidebar_changed)
+        main_layout.addWidget(self.sidebar)
+
+        # 2. 右侧内容堆栈
+        self.content_stack = QStackedWidget()
+        
+        # 创建并添加 "任务总进度" 视图
+        self.total_progress_view = TotalProgressWidget()
+        self.content_stack.addWidget(self.total_progress_view)
+
+        # 创建并添加 "已完成的任务" 的占位符视图
+        self.completed_view = QLabel("这里将显示所有已完成的任务")
+        self.completed_view.setAlignment(Qt.AlignCenter)
+        self.content_stack.addWidget(self.completed_view)
+
+        # 创建并添加 "已失败的任务" 的占位符视图
+        self.failed_view = QLabel("这里将显示所有已失败的任务")
+        self.failed_view.setAlignment(Qt.AlignCenter)
+        self.content_stack.addWidget(self.failed_view)
+
+        main_layout.addWidget(self.content_stack)
+
+    def on_sidebar_changed(self, index):
+        self.content_stack.setCurrentIndex(index)
+
+    def populate_initial_tasks(self, tasks_data):
+        self.total_progress_view.populate_initial_tasks(tasks_data)
+
+    def update_task_progress(self, completed_tasks_data):
+        self.total_progress_view.update_task_progress(completed_tasks_data)
 
 class MyToolApplication(QWidget):
     """主应用程序窗口"""
     def __init__(self):
         super().__init__()
         self.controller = app_controller
+        self.loaded_browser_ids = [] # 创建“全局”变量
         self.init_ui()
         self.start_backend_initialization()
         
@@ -683,9 +900,18 @@ class MyToolApplication(QWidget):
         main_layout = QVBoxLayout()
         self.tab_widget = QTabWidget(); self.tab_widget.setStyleSheet("QTabWidget::pane { border: none; }")
         self.log_widget = LogWidget()
-        self.home_tab = HomeTab(); self.config_tab = ConfigTab(); self.project_tab = ProjectTab()
-        self.tab_widget.addTab(self.home_tab, "首页"); self.tab_widget.addTab(self.config_tab, "配置"); self.tab_widget.addTab(self.project_tab, "项目")
-        self.tab_widget.tabBarClicked.connect(self.on_tab_bar_clicked); self.tab_widget.currentChanged.connect(self.on_tab_changed)
+        self.home_tab = HomeTab()
+        self.config_tab = ConfigTab(self) # 传递主窗口引用
+        self.results_tab = ExecutionResultsTab()
+        self.project_tab = ProjectTab(self) # 传递主窗口引用
+
+        self.tab_widget.addTab(self.home_tab, "首页")
+        self.tab_widget.addTab(self.config_tab, "配置")
+        self.tab_widget.addTab(self.project_tab, "项目")
+        self.tab_widget.addTab(self.results_tab, "执行结果") # 添加新标签页
+        
+        self.tab_widget.tabBarClicked.connect(self.on_tab_bar_clicked)
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         main_layout.addWidget(self.tab_widget)
         log_label = QLabel("日志"); log_label.setFont(QFont('Microsoft YaHei', 12, QFont.Weight.Bold)); log_label.setStyleSheet("color: #333; margin: 10px 0 5px 0;"); main_layout.addWidget(log_label)
         main_layout.addWidget(self.log_widget); self.setLayout(main_layout)

@@ -2,6 +2,8 @@ import threading
 import os
 import importlib.util
 import inspect
+import queue
+import copy
 from time import sleep
 
 from backend.dispatcher import Dispatcher
@@ -19,9 +21,14 @@ class SmartController:
         self.log = log_util
         self.projects_map = {}
         self.interrupt_event = threading.Event()
-        self.task_results = []
-        self.results_lock = threading.Lock()
+        self.result_queue = queue.Queue()
         self.dispatcher = None  # 持有调度器实例
+
+        # 用于存储实时任务状态
+        self.current_task_status = {}
+        self.status_lock = threading.Lock()
+        self.result_processor_thread = None
+        self.completed_task_count = 0
 
     def discover_projects(self):
         """扫描、加载并解析所有项目脚本，返回UI友好的数据结构。"""
@@ -81,6 +88,11 @@ class SmartController:
         self.interrupt_event.set()
         if self.dispatcher:
             self.dispatcher.shutdown()
+        
+        # 等待结果处理线程结束
+        if self.result_processor_thread and self.result_processor_thread.is_alive():
+            self.log.info("智能控制器", "等待结果处理器完成最终处理...")
+            self.result_processor_thread.join(timeout=5) # 设置超时以防万一
 
     def dispatch_sequence(self, sequence: list[dict], concurrent_browsers: int):
         """
@@ -88,22 +100,95 @@ class SmartController:
         """
         self.log.info("智能控制器", f"接收到执行任务请求。")
         
-        self.task_results.clear()
+        # 确保之前的任务已经完全终止
+        if self.result_processor_thread and self.result_processor_thread.is_alive():
+            self.log.warn("智能控制器", "检测到上一次的任务仍在运行，将先执行强制关闭。")
+            self.shutdown()
+
         self.interrupt_event.clear()
+        with self.status_lock:
+            self.current_task_status.clear()
+            self.completed_task_count = 0
+
+        # 清空旧的结果队列
+        while not self.result_queue.empty():
+            try:
+                self.result_queue.get_nowait()
+            except queue.Empty:
+                break
 
         self.dispatcher = Dispatcher(
             sequence=sequence,
             concurrent_browsers=concurrent_browsers,
             projects_map=self.projects_map,
-            results_list=self.task_results,
-            results_lock=self.results_lock,
+            result_queue=self.result_queue,
             interrupt_event=self.interrupt_event
         )
 
-        self.dispatcher.execute()
+        # 启动结果处理线程
+        self.result_processor_thread = threading.Thread(target=self._result_processor_loop, name="ResultProcessor")
+        self.result_processor_thread.start()
 
-        self.log.info("智能控制器", "所有任务已执行完毕。")
-        return self.task_results
+        # 在后台线程中启动调度器，防止阻塞
+        threading.Thread(target=self.dispatcher.execute, name="DispatcherThread").start()
+
+        self.log.info("智能控制器", "任务已成功分发到调度器。")
+        # 这里可以立即返回，或者根据需要返回一个任务ID等
+        return {"status": "started"}
+
+    def _result_processor_loop(self):
+        """在一个独立的线程中运行，处理任务结果队列。"""
+        self.log.info("结果处理器", "结果处理线程已启动。")
+
+        total_tasks = self.dispatcher.total_task_count if self.dispatcher else 0
+        if total_tasks == 0:
+            self.log.info("结果处理器", "没有需要处理的任务，线程退出。")
+            return
+
+        while True:
+            # 检查退出条件
+            if self.interrupt_event.is_set() and self.result_queue.empty():
+                self.log.warn("结果处理器", "检测到中断信号且队列已空，退出循环。")
+                break
+            
+            if not self.interrupt_event.is_set() and self.completed_task_count >= total_tasks:
+                self.log.info("结果处理器", "已处理完所有任务，退出循环。")
+                break
+
+            try:
+                result = self.result_queue.get(timeout=1)
+                if result is None: # 安全保障
+                    continue
+
+                result_data = result.to_dict()
+
+                with self.status_lock:
+                    if result.browser_id not in self.current_task_status:
+                        self.current_task_status[result.browser_id] = []
+                    self.current_task_status[result.browser_id].append(result_data)
+                    self.completed_task_count += 1
+                
+                self.result_queue.task_done()
+
+            except queue.Empty:
+                continue # 队列为空，继续循环以检查退出条件
+            except Exception as e:
+                self.log.error("结果处理器", f"处理结果时发生未知错误: {e}", exc_info=True)
+
+    def get_task_progress(self):
+        """获取当前所有任务的执行状态。供前端轮询调用。"""
+        with self.status_lock:
+            # 返回一个深拷贝，防止在外部修改原始状态
+            return copy.deepcopy(self.current_task_status)
+
+    def get_execution_status(self):
+        """获取任务执行的计数状态。"""
+        total_tasks = self.dispatcher.total_task_count if self.dispatcher else 0
+        with self.status_lock:
+            return {
+                'completed': self.completed_task_count,
+                'total': total_tasks
+            }
 
 
     def get_ip_configs(self):

@@ -86,25 +86,43 @@ class AdsBrowserUtil:
 
         # 2. 如果未运行，则启动浏览器
         if not selenium_ws:
-            time.sleep(0.2)
             start_endpoint = "/browser/start"
             start_url = f"{api_base.rstrip('/')}{start_endpoint}?user_id={user_id}"
+            active_url = f"{api_base.rstrip('/')}{active_endpoint}?user_id={user_id}" # 为二次检查准备好URL
+            
+            for attempt in range(3):
+                try:
+                    resp = requests.get(start_url, proxies={"http": None, "https": None}, timeout=20)
+                    resp.raise_for_status()
+                    data = resp.json()
 
-            try:
-                resp = requests.get(start_url, proxies={"http": None, "https": None}, timeout=20)
-                resp.raise_for_status()
-                data = resp.json()
+                    if data.get("code") == 0 and data.get("data", {}).get("ws", {}).get("selenium"):
+                        time.sleep(2) # 等待浏览器进程完全启动
+                        selenium_ws = data["data"]["ws"]["selenium"]
+                        log_util.info("AdsBrowserUtil", f"通过API成功启动浏览器 {user_id}。")
+                        break # 成功，跳出重试循环
+                    else:
+                        # API响应了，但内容不代表成功，可能是AdsPower正忙
+                        time.sleep(1)
+                        try:
+                            active_resp = requests.get(active_url, proxies={"http": None, "https": None}, timeout=10)
+                            active_data = active_resp.json()
+                            if active_data.get("code") == 0 and active_data.get("data", {}).get("status") == "Active":
+                                log_util.info("AdsBrowserUtil", f"二次检查成功：浏览器 {user_id} 已处于活动状态。")
+                                selenium_ws = active_data["data"]["ws"]["selenium"]
+                                break # 成功，跳出重试循环
+                        except Exception as e_active:
+                            log_util.warn("AdsBrowserUtil", f"二次检查浏览器 {user_id} 活动状态失败: {e_active}")
 
-                if data.get("code") == 0 and data.get("data", {}).get("ws", {}).get("selenium"):
-                    time.sleep(2)
-                    selenium_ws = data["data"]["ws"]["selenium"]
-                else:
-                    api_msg = data.get("msg", "无来自API的消息。")
-                    log_util.error("AdsBrowserUtil", f"启动浏览器 {user_id} 失败。API消息: {api_msg}")
-                    return None
-
-            except requests.exceptions.RequestException as e:
-                log_util.error("AdsBrowserUtil", f"启动浏览器 {user_id} 时API请求失败: {e}", exc_info=True)
+                except requests.exceptions.RequestException as e:
+                    log_util.warn("AdsBrowserUtil", f"尝试启动浏览器 {user_id} 时API请求失败 (第 {attempt + 1} 次): {e}")
+                
+                if attempt < 2: # 如果不是最后一次尝试
+                    log_util.info("AdsBrowserUtil", "1秒后重试...")
+                    time.sleep(1)
+            
+            if not selenium_ws:
+                log_util.error("AdsBrowserUtil", f"启动浏览器 {user_id} 在3次尝试后彻底失败。")
                 return None
         
         # 3. 使用获取到的selenium_ws地址创建并返回Browser对象
