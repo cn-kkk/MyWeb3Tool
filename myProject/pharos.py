@@ -231,7 +231,7 @@ class PharosScript:
             AntiSybilDpUtil.human_huge_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
-            swap_btn = swap_page.ele('#swap-button', timeout=10) # type: ignore
+            swap_btn = swap_page.ele('#swap-button', timeout=15)
             if not (swap_btn and swap_btn.states.is_clickable):
                 log_util.error(self.user_id, "Zenith Swap任务失败：Swap按钮未出现或不可点击。")
                 return False
@@ -267,9 +267,10 @@ class PharosScript:
             if max_btn:
                 max_btn.click()
             else:
-                amount_input.click()
+                new_amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
+                new_amount_input.click()
                 AntiSybilDpUtil.human_brief_wait()
-                amount_input.clear()
+                new_amount_input.clear()
                 AntiSybilDpUtil.human_brief_wait()
                 random_amount_str = AntiSybilDpUtil.get_perturbation_number(10, 2)
                 AntiSybilDpUtil.simulate_typing(swap_page, random_amount_str)
@@ -286,7 +287,7 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                log_util.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：钱包交易确认失败。")
                 return False
             AntiSybilDpUtil.human_huge_wait()
 
@@ -294,7 +295,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"Swap任务执行时发生意外错误: {e}", exc_info=True)
+            log_util.error(self.user_id, f"Zenith Swap任务执行时发生意外错误: {e}", exc_info=True)
             return False
         finally:
             # 任务结束后关闭页面
