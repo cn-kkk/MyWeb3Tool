@@ -51,6 +51,8 @@ class OKXWalletUtil:
 
             # 循环处理，直到钱包页面关闭
             while wallet_page.tab_id in browser.tab_ids:
+                # 重新获取一次
+                wallet_page = browser.latest_tab
                 # 优先处理“取消交易”弹窗，避免阻塞
                 cancel_tx_button = wallet_page.ele('text:取消交易', timeout=3)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
