@@ -209,7 +209,7 @@ class PharosScript:
             # 步骤6: 在弹窗中选择USDC
             usdc_option = swap_page.ele('xpath://div[@data-testid="common-base-USDC"]') # type: ignore
             if not (usdc_option and usdc_option.states.is_displayed):
-                log_util.error(self.user_id, "Swap任务失败：未找到'USDC'选项。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：未找到'USDC'选项。")
                 return False
             usdc_option.click()
             AntiSybilDpUtil.human_short_wait()
@@ -217,7 +217,7 @@ class PharosScript:
             # 步骤7: 在PHRS输入框中输入金额
             amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
             if not amount_input:
-                log_util.error(self.user_id, "Swap任务失败：未找到金额输入框。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：未找到金额输入框。")
                 return False
             # 采用“点击->清空->输入”的终极策略来处理顽固输入框
             amount_input.click()
@@ -232,9 +232,9 @@ class PharosScript:
             AntiSybilDpUtil.human_huge_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
-            swap_btn = swap_page.ele('#swap-button') # type: ignore
+            swap_btn = swap_page.ele('#swap-button', timeout=10) # type: ignore
             if not (swap_btn and swap_btn.states.is_clickable):
-                log_util.error(self.user_id, "Swap任务失败：Swap按钮未出现或不可点击。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：Swap按钮未出现或不可点击。")
                 return False
             swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
@@ -242,7 +242,7 @@ class PharosScript:
             # 步骤10: 在弹窗中点击 "Confirm Swap"
             confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
             if not confirm_swap_btn:
-                log_util.error(self.user_id, "Swap任务失败：未找到 'Confirm Swap' 按钮。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：未找到 'Confirm Swap' 按钮。")
                 return False
             confirm_swap_btn.wait.clickable(timeout=10)
             confirm_swap_btn.click()
@@ -250,7 +250,7 @@ class PharosScript:
 
             # 步骤11: 处理OKX钱包交易确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                log_util.error(self.user_id, "Swap任务失败：钱包交易确认失败。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：钱包交易确认失败。")
                 return False
             AntiSybilDpUtil.human_huge_wait()
             AntiSybilDpUtil.simulate_mouse_move(swap_page)
@@ -354,14 +354,18 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤6: 点击 Review Swap 按钮 (在15秒内持续查找)
-            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=15)
+            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=20)
             if not review_button:
-                raise Exception("等待15秒后未能找到'Review Swap'按钮，任务中止。")
+                log_util.error(self.user_id, "Faro Swap任务失败：等待20秒后未能找到'Review Swap'按钮，任务中止。")
+                return False
             review_button.click()
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤7: 点击 Confirm Swap 按钮 (在15秒内持续查找)
-            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=15)
+            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=20)
+            if not confirm_button:
+                log_util.error(self.user_id, "Faro Swap任务失败：等待20秒后未能找到'Confirm Swap'按钮，任务中止。")
+                return False
             confirm_button.click()
             AntiSybilDpUtil.human_long_wait()
 
@@ -387,11 +391,11 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤11: 再次swap
-            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=15)
+            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=20)
             review_button.click()
             AntiSybilDpUtil.human_short_wait()
 
-            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=15)
+            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=20)
             confirm_button.click()
             AntiSybilDpUtil.human_long_wait()
 
@@ -472,6 +476,7 @@ class PharosScript:
             log_util.info(self.user_id, "—————— 发送代币任务已成功完成 ——————")
             AntiSybilDpUtil.human_long_wait()
             AntiSybilDpUtil.simulate_random_click(self.page, self.user_id)
+            AntiSybilDpUtil.human_brief_wait()
             return True
 
         except Exception as e:

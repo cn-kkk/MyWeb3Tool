@@ -43,7 +43,7 @@ class OKXWalletUtil:
         wallet_page = None
         try:
             wallet_page = browser.latest_tab
-            wallet_page.wait.load_start()
+            AntiSybilDpUtil.human_short_wait()
 
             if self.EXTENSION_ID not in wallet_page.url:
                 log_util.warn(user_id,"未找到okx钱包页面。")

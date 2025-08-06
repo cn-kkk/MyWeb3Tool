@@ -86,10 +86,8 @@ class AntiSybilDpUtil:
         try:
             # 在执行任何操作前，先等待页面加载稳定
             page.wait.load_start()
-            
-            # 使用JSON.stringify确保JS返回的是一个字符串，然后由Python的json库解析
-            size_str = page.run_js('return JSON.stringify([window.innerWidth, window.innerHeight]);')
-            width, height = json.loads(size_str)
+
+            width, height = page.rect.viewport_size
             
             for _ in range(random.randint(1, 3)):
                 # 确保坐标在视口范围内，并留出边距
@@ -112,18 +110,27 @@ class AntiSybilDpUtil:
                 log_util.warn(user_id, "simulate_random_click收到了一个空的page对象，已跳过。")
                 return
 
-            # JS脚本，用于检查给定坐标的元素是否可交互
+            # 混淆后的JS脚本，判断坐标处是否能交互
+            # 深度混淆后的JS脚本，避免出现关键字
             js_is_safe_to_click = """
-            const el = document.elementFromPoint(arguments[0], arguments[1]);
-            if (!el) return true; // 如果没有元素（例如，在文档之外），则认为是安全的
-            // 检查元素本身或其父级是否是常见的可交互标签
-            if (el.closest('a, button, input, select, [onclick]')) return false;
-            // 检查元素的鼠标样式是否为'pointer'
-            if (window.getComputedStyle(el).cursor === 'pointer') return false;
-            return true; // 所有检查都通过，是安全的
+            return (function(x, y) {
+                const _d = window['docu' + 'ment'];
+                const _w = window;
+                const _p = 'poin' + 'ter';
+                const _el = _d['elementF' + 'romPoint'](x, y);
+                if (!_el) {
+                    return true;
+                }
+                const _s = 'a,bu' + 'tton,in' + 'put,sel' + 'ect,[on' + 'click]';
+                const _style = _w['getComp' + 'utedStyle'](_el);
+                if (_el['clo' + 'sest'](_s) || _style['cur' + 'sor'] === _p) {
+                    return false;
+                }
+                return true;
+            })(arguments[0], arguments[1]);
             """
 
-            width, height = page.run_js('return [window.innerWidth, window.innerHeight];')
+            width, height = page.rect.viewport_size
 
             # 尝试最多5次以找到一个安全的点击位置
             for i in range(5):
