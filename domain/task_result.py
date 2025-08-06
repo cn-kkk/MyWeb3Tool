@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 
 @dataclass
@@ -9,3 +9,9 @@ class TaskResult:
     status: str  # e.g., 'SUCCESS', 'FAILURE'
     timestamp: datetime
     details: str
+
+    def to_dict(self):
+        """将TaskResult对象转换为可序列化为JSON的字典。"""
+        d = asdict(self)
+        d['timestamp'] = self.timestamp.isoformat()
+        return d

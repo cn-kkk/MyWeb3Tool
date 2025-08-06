@@ -5,6 +5,7 @@ import random
 import traceback
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 
 import pyautogui
 from DrissionPage import ChromiumPage, ChromiumOptions
@@ -214,10 +215,19 @@ class Dispatcher:
 
     def execute(self):
         """调度器的主执行方法。"""
-        self.browser_ids = AdsBrowserUtil.get_configured_user_ids()
-        if not self.browser_ids:
+        all_browser_ids = AdsBrowserUtil.get_configured_user_ids()
+        if not all_browser_ids:
             self.log.error("调度器", "未在配置文件中找到任何浏览器ID，调度中止。" )
             return
+
+        # 预检1: 检查重复的浏览器ID
+        id_counts = Counter(all_browser_ids)
+        duplicates = [item for item, count in id_counts.items() if count > 1]
+        if duplicates:
+            self.log.error("调度器", f"配置文件中存在重复的浏览器ID: {duplicates}。请修正后重试。调度中止。" )
+            return
+        
+        self.browser_ids = all_browser_ids
 
         self._generate_all_assignments()
 
