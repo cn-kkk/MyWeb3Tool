@@ -231,17 +231,17 @@ class PharosScript:
             AntiSybilDpUtil.human_huge_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
-            swap_btn = swap_page.ele('#swap-button', timeout=15)
+            swap_btn = swap_page.ele('#swap-button', timeout=20)
             if not (swap_btn and swap_btn.states.is_clickable):
-                log_util.error(self.user_id, "Zenith Swap任务失败：Swap按钮未出现或不可点击。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：未能等到Swap按钮出现。")
                 return False
             swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10: 在弹窗中点击 "Confirm Swap"
-            confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
+            confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=20)
             if not confirm_swap_btn:
-                log_util.error(self.user_id, "Zenith Swap任务失败：未找到 'Confirm Swap' 按钮。")
+                log_util.error(self.user_id, "Zenith Swap任务失败：未能等到Confirm Swap按钮出现。")
                 return False
             confirm_swap_btn.wait.clickable(timeout=10)
             confirm_swap_btn.click()
@@ -356,7 +356,7 @@ class PharosScript:
             # 步骤6: 点击 Review Swap 按钮 (在15秒内持续查找)
             review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=20)
             if not review_button:
-                log_util.error(self.user_id, "Faro Swap任务失败：等待20秒后未能找到'Review Swap'按钮，任务中止。")
+                log_util.error(self.user_id, "Faro Swap任务失败：未能等到'Review Swap'按钮出现。")
                 return False
             review_button.click()
             AntiSybilDpUtil.human_short_wait()
@@ -364,7 +364,7 @@ class PharosScript:
             # 步骤7: 点击 Confirm Swap 按钮 (在15秒内持续查找)
             confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=20)
             if not confirm_button:
-                log_util.error(self.user_id, "Faro Swap任务失败：等待20秒后未能找到'Confirm Swap'按钮，任务中止。")
+                log_util.error(self.user_id, "Faro Swap任务失败：未能等到'Confirm Swap'按钮出现。")
                 return False
             confirm_button.click()
             AntiSybilDpUtil.human_long_wait()

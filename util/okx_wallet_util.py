@@ -43,7 +43,7 @@ class OKXWalletUtil:
         wallet_page = None
         try:
             wallet_page = browser.latest_tab
-            AntiSybilDpUtil.human_short_wait()
+            AntiSybilDpUtil.human_long_wait()
 
             if self.EXTENSION_ID not in wallet_page.url:
                 log_util.warn(user_id,"未找到okx钱包页面。")
@@ -54,15 +54,15 @@ class OKXWalletUtil:
                 # 重新获取一次
                 wallet_page = browser.latest_tab
                 # 优先处理“取消交易”弹窗，避免阻塞
-                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=3)
+                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=5)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
                     AntiSybilDpUtil.human_short_wait()
                     cancel_tx_button.click()
-                    AntiSybilDpUtil.human_short_wait()
+                    AntiSybilDpUtil.human_long_wait()
                     continue  # 继续循环，检查页面是否关闭或有新弹窗
 
                 action_button = wallet_page.ele(
-                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=3
+                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=5
                 )
                 if action_button and action_button.states.is_clickable:
                     AntiSybilDpUtil.human_short_wait()
@@ -70,10 +70,11 @@ class OKXWalletUtil:
                     AntiSybilDpUtil.human_long_wait()
                     continue
 
-                cancel_button = wallet_page.ele('text:取消', timeout=3)
+                cancel_button = wallet_page.ele('text:取消', timeout=5)
                 if cancel_button and cancel_button.states.is_clickable:
                     AntiSybilDpUtil.human_short_wait()
                     cancel_button.click()
+                    AntiSybilDpUtil.human_long_wait()
                     raise Exception("钱包当前只能点击取消。")
                 
                 AntiSybilDpUtil.human_short_wait()
