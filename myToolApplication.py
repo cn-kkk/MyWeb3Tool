@@ -738,56 +738,77 @@ class TotalProgressWidget(QWidget):
         self.table = StyledTableWidget(headers)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        
+
         header = self.table.horizontalHeader()
         self.table.resizeColumnsToContents()
 
         layout.addWidget(self.table)
 
     def populate_initial_tasks(self, tasks_data):
+        # 按浏览器ID排序
+        tasks_data.sort(key=lambda x: x['browser_id'])
+
         self.table.setUpdatesEnabled(False) # 优化性能
         self.table.setRowCount(0)
         self.task_row_map.clear()
         self.table.setRowCount(len(tasks_data))
 
+        # 首先，填充所有数据
         for i, task in enumerate(tasks_data):
             browser_id = task['browser_id']
             task_name = task['task_name']
 
-            # 1. 序号 (居中)
+            # 1. 序号
             seq_item = QTableWidgetItem(str(i + 1))
             seq_item.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(i, 0, seq_item)
 
-            # 2. 浏览器ID (居中)
+            # 2. 浏览器ID
             id_item = QTableWidgetItem(browser_id)
             id_item.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(i, 1, id_item)
 
-            # 3. 任务名称 (居左)
+            # 3. 任务名称
             name_item = QTableWidgetItem(task_name)
             self.table.setItem(i, 2, name_item)
 
-            # 4. 执行结果 (等待中 - 动画)
+            # 4. 执行结果 (动画)
             status_label = QLabel()
             status_label.setAlignment(Qt.AlignCenter)
-            movie = QMovie(os.path.join(AppConfig.BASE_DIR, 'icon', 'loading.gif')) # 假设有一个loading.gif
+            movie = QMovie(os.path.join(AppConfig.BASE_DIR, 'icon', 'loading.gif'))
             status_label.setMovie(movie)
             movie.start()
             self.table.setCellWidget(i, 3, status_label)
 
-            # 5. 失败详情 (居左)
+            # 5. 失败详情
             details_item = QTableWidgetItem("")
             self.table.setItem(i, 4, details_item)
 
-            # 6. 完成时间 (居中)
+            # 6. 完成时间
             time_item = QTableWidgetItem("")
             time_item.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(i, 5, time_item)
 
-            # 建立索引，用于快速更新
+            # 建立索引
             self.task_row_map[(browser_id, task_name)] = i
-        
+
+        # 其次，合并单元格
+        if len(tasks_data) > 0:
+            span_start_row = 0
+            current_browser_id = tasks_data[0]['browser_id']
+            for i in range(1, len(tasks_data)):
+                if tasks_data[i]['browser_id'] != current_browser_id:
+                    row_span = i - span_start_row
+                    if row_span > 1:
+                        self.table.setSpan(span_start_row, 1, row_span, 1)
+                    span_start_row = i
+                    current_browser_id = tasks_data[i]['browser_id']
+
+            # 合并最后一组
+            row_span = len(tasks_data) - span_start_row
+            if row_span > 1:
+                self.table.setSpan(span_start_row, 1, row_span, 1)
+
         self.table.setUpdatesEnabled(True) # 优化性能
 
     def update_task_progress(self, completed_tasks_data):
@@ -798,7 +819,7 @@ class TotalProgressWidget(QWidget):
 
                 if key in self.task_row_map:
                     row = self.task_row_map[key]
-                    
+
                     # 移除动画
                     self.table.setCellWidget(row, 3, None)
 
