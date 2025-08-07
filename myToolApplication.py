@@ -343,7 +343,7 @@ class ConfigTab(QWidget):
         self.main_app = main_app # 持有主窗口引用
         self._last_sidebar_index = 0
         self.init_ui()
-        
+
     def init_ui(self):
         layout = QHBoxLayout()
         sidebar_items = ["IP配置", "钱包配置", "浏览器ID配置"]; self.sidebar = StyledSidebar(sidebar_items, 200); self.sidebar.currentRowChanged.connect(self.on_sidebar_changed); layout.addWidget(self.sidebar)
@@ -355,7 +355,7 @@ class ConfigTab(QWidget):
         self.browser_config_widget = BrowserConfigWidget(self.main_app) # 传递主窗口引用
         self.content_stack.addWidget(self.browser_config_widget)
         layout.addWidget(self.content_stack); self.setLayout(layout)
-        
+
     def on_sidebar_changed(self, index):
         current_widget = self.content_stack.currentWidget()
         if hasattr(current_widget, 'is_editing') and current_widget.is_editing: current_widget.exit_edit_mode()
@@ -445,7 +445,7 @@ class ProjectTab(QWidget):
         sidebar_container_layout.setContentsMargins(15, 15, 15, 15)
         sidebar_container_layout.setSpacing(15)
         sidebar_container_layout.setAlignment(Qt.AlignTop)
-        
+
         # Concurrency settings
         concurrency_layout = QHBoxLayout()
         concurrency_label = QLabel("<b>最多同步浏览器:</b>")
@@ -483,7 +483,7 @@ class ProjectTab(QWidget):
         left_layout.addWidget(sidebar_container)
         left_layout.addWidget(v_separator)
         left_layout.addWidget(self.content_stack)
-        
+
         # --- Right Panel: Task Sequence ---
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
@@ -511,7 +511,7 @@ class ProjectTab(QWidget):
         self.clear_seq_btn = QPushButton("清空序列")
         self.clear_seq_btn.setStyleSheet("background-color: #95a5a6; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
         self.clear_seq_btn.clicked.connect(self.sequence_list.clear)
-        
+
         action_layout.addWidget(self.stop_btn)
         action_layout.addStretch()
         action_layout.addWidget(self.clear_seq_btn)
@@ -533,11 +533,11 @@ class ProjectTab(QWidget):
             widget = self.content_stack.widget(0)
             self.content_stack.removeWidget(widget)
             widget.deleteLater()
-        
+
         for proj in self.project_classes:
             self.sidebar.addItem(proj['project_name'])
             self.content_stack.addWidget(self.create_available_tasks_widget(proj))
-        
+
         if self.project_classes:
             self.sidebar.setCurrentRow(0)
 
@@ -569,7 +569,7 @@ class ProjectTab(QWidget):
             top_row_layout = QHBoxLayout()
             task_name_label = QLabel(f"<b>任务:</b> {task['name']}")
             task_name_label.setFont(QFont('Microsoft YaHei', 12, QFont.Weight.Bold))
-            
+
             top_row_layout.addWidget(task_name_label)
             top_row_layout.addStretch()
 
@@ -602,7 +602,7 @@ class ProjectTab(QWidget):
             task_desc_label.setWordWrap(True)
             task_desc_label.setStyleSheet("color: #7f8c8d; margin-top: 8px;")
             task_frame_layout.addWidget(task_desc_label)
-            
+
             tasks_layout.addWidget(task_frame)
 
         tasks_layout.addStretch()
@@ -632,7 +632,7 @@ class ProjectTab(QWidget):
         list_item = QListWidgetItem(self.sequence_list)
         item_widget = SequenceItemWidget(project['project_name'], task['name'], count, list_item)
         item_widget.remove_requested.connect(self.remove_item_from_sequence)
-        
+
         list_item.setSizeHint(item_widget.sizeHint())
         self.sequence_list.addItem(list_item)
         self.sequence_list.setItemWidget(list_item, item_widget)
@@ -657,7 +657,7 @@ class ProjectTab(QWidget):
             widget = self.sequence_list.itemWidget(item)
             if widget:
                 sequence_data.append(widget.get_sequence_data())
-        
+
         if not sequence_data:
             QMessageBox.information(self, "序列为空", "请先将任务添加到执行序列。")
             return
@@ -681,7 +681,7 @@ class ProjectTab(QWidget):
 
         log_util.info("UI", f"任务序列已提交给后端执行，共 {len(sequence_data)} 个任务。")
         QMessageBox.information(self, "任务开始", f"开始执行任务。")
-        
+
         concurrent_browsers = int(self.concurrency_combo.currentText())
         self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data, concurrent_browsers)
         self.dispatch_thread.start()
@@ -713,7 +713,7 @@ class ProjectTab(QWidget):
         """处理停止按钮点击事件，增加确认弹窗。"""
         reply = QMessageBox.question(self, '确认停止',
                                      "您确定要停止执行任务吗？\n\n此操作将终止所有未开始的任务。",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                      QMessageBox.StandardButton.No)
 
         if reply == QMessageBox.StandardButton.Yes:
@@ -724,7 +724,7 @@ class ProjectTab(QWidget):
 
 
 class TotalProgressWidget(QWidget):
-    """"任务总进度"视图的专用控件。"""
+    """任务总进度”视图的专用控件。"""
     def __init__(self):
         super().__init__()
         self.task_row_map = {}  # 用于快速查找任务对应的行
@@ -736,80 +736,59 @@ class TotalProgressWidget(QWidget):
 
         headers = ['序号', '浏览器id', '任务名称', '执行结果', '失败详情', '完成时间']
         self.table = StyledTableWidget(headers)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # FIX: Set selection to single, full rows to fix all selection bugs
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
+        # FIX: Ensure no cell can ever be edited
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
 
         header = self.table.horizontalHeader()
         self.table.resizeColumnsToContents()
-
         layout.addWidget(self.table)
 
     def populate_initial_tasks(self, tasks_data):
-        # 按浏览器ID排序
         tasks_data.sort(key=lambda x: x['browser_id'])
-
-        self.table.setUpdatesEnabled(False) # 优化性能
+        self.table.setUpdatesEnabled(False)
         self.table.setRowCount(0)
         self.task_row_map.clear()
         self.table.setRowCount(len(tasks_data))
 
-        # 首先，填充所有数据
+        last_browser_id = None
         for i, task in enumerate(tasks_data):
             browser_id = task['browser_id']
             task_name = task['task_name']
 
-            # 1. 序号
+            # FIX: Only show browser_id if it's the first in a new group
+            display_browser_id = browser_id if browser_id != last_browser_id else ""
+            last_browser_id = browser_id
+
+            # FIX: Create items with simple text, no icons or animations
             seq_item = QTableWidgetItem(str(i + 1))
-            seq_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 0, seq_item)
-
-            # 2. 浏览器ID
-            id_item = QTableWidgetItem(browser_id)
-            id_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 1, id_item)
-
-            # 3. 任务名称
+            id_item = QTableWidgetItem(display_browser_id)
             name_item = QTableWidgetItem(task_name)
-            self.table.setItem(i, 2, name_item)
-
-            # 4. 执行结果 (动画)
-            status_label = QLabel()
-            status_label.setAlignment(Qt.AlignCenter)
-            movie = QMovie(os.path.join(AppConfig.BASE_DIR, 'icon', 'loading.gif'))
-            status_label.setMovie(movie)
-            movie.start()
-            self.table.setCellWidget(i, 3, status_label)
-
-            # 5. 失败详情
+            result_item = QTableWidgetItem("执行中...")
             details_item = QTableWidgetItem("")
-            self.table.setItem(i, 4, details_item)
-
-            # 6. 完成时间
             time_item = QTableWidgetItem("")
+
+            # FIX: Set ALL items as non-editable immediately after creation
+            for item in [seq_item, id_item, name_item, result_item, details_item, time_item]:
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
+            seq_item.setTextAlignment(Qt.AlignCenter)
+            id_item.setTextAlignment(Qt.AlignCenter)
+            result_item.setTextAlignment(Qt.AlignCenter)
             time_item.setTextAlignment(Qt.AlignCenter)
+
+            self.table.setItem(i, 0, seq_item)
+            self.table.setItem(i, 1, id_item)
+            self.table.setItem(i, 2, name_item)
+            self.table.setItem(i, 3, result_item)
+            self.table.setItem(i, 4, details_item)
             self.table.setItem(i, 5, time_item)
 
-            # 建立索引
             self.task_row_map[(browser_id, task_name)] = i
 
-        # 其次，合并单元格
-        if len(tasks_data) > 0:
-            span_start_row = 0
-            current_browser_id = tasks_data[0]['browser_id']
-            for i in range(1, len(tasks_data)):
-                if tasks_data[i]['browser_id'] != current_browser_id:
-                    row_span = i - span_start_row
-                    if row_span > 1:
-                        self.table.setSpan(span_start_row, 1, row_span, 1)
-                    span_start_row = i
-                    current_browser_id = tasks_data[i]['browser_id']
-
-            # 合并最后一组
-            row_span = len(tasks_data) - span_start_row
-            if row_span > 1:
-                self.table.setSpan(span_start_row, 1, row_span, 1)
-
-        self.table.setUpdatesEnabled(True) # 优化性能
+        self.table.setUpdatesEnabled(True)
 
     def update_task_progress(self, completed_tasks_data):
         for browser_id, results in completed_tasks_data.items():
@@ -820,45 +799,32 @@ class TotalProgressWidget(QWidget):
                 if key in self.task_row_map:
                     row = self.task_row_map[key]
 
-                    # 移除动画
-                    self.table.setCellWidget(row, 3, None)
-
-                    # 更新状态图标
-                    status_item = QTableWidgetItem()
-                    icon_path = os.path.join(AppConfig.BASE_DIR, 'icon', 'success.png' if result['status'] == 'SUCCESS' else 'failure.png')
-                    status_item.setIcon(QIcon(icon_path))
-                    self.table.setItem(row, 3, status_item)
-
-                    # 更新失败详情和完成时间
+                    # FIX: Simply update the text of the existing, non-editable item
+                    result_text = "成功" if result['status'] == 'SUCCESS' else "失败"
+                    self.table.item(row, 3).setText(result_text)
                     self.table.item(row, 4).setText(result['details'])
                     self.table.item(row, 5).setText(result['timestamp'])
 
-                    # 从map中移除，表示已处理
                     del self.task_row_map[key]
 
     def resizeEvent(self, event):
-        """在窗口大小改变时触发，用于动态调整列宽。"""
         super().resizeEvent(event)
         self._update_column_widths()
 
     def _update_column_widths(self):
-        """根据预设百分比更新列宽"""
         table_width = self.table.viewport().width()
         if table_width <= 0: return
-
-        # 根据您指定的百分比设置列宽
-        self.table.setColumnWidth(0, int(table_width * 0.10)) # 序号
-        self.table.setColumnWidth(1, int(table_width * 0.15)) # 浏览器id
-        self.table.setColumnWidth(2, int(table_width * 0.20)) # 任务名称
-        self.table.setColumnWidth(3, int(table_width * 0.10)) # 执行结果
-        self.table.setColumnWidth(4, int(table_width * 0.30)) # 失败详情
-        self.table.setColumnWidth(5, int(table_width * 0.15)) # 完成时间
+        self.table.setColumnWidth(0, int(table_width * 0.10))
+        self.table.setColumnWidth(1, int(table_width * 0.15))
+        self.table.setColumnWidth(2, int(table_width * 0.20))
+        self.table.setColumnWidth(3, int(table_width * 0.10))
+        self.table.setColumnWidth(4, int(table_width * 0.30))
+        self.table.setColumnWidth(5, int(table_width * 0.15))
 
     def showEvent(self, event):
-        """在控件显示时触发，确保初始列宽正确。"""
         super().showEvent(event)
-        # 使用QTimer.singleShot确保这是在showEvent的最后阶段执行
         QTimer.singleShot(0, self._update_column_widths)
+
 
 class ExecutionResultsTab(QWidget):
     """执行结果标签页，包含侧边栏和内容区域。"""
@@ -878,7 +844,7 @@ class ExecutionResultsTab(QWidget):
 
         # 2. 右侧内容堆栈
         self.content_stack = QStackedWidget()
-        
+
         # 创建并添加 "任务总进度" 视图
         self.total_progress_view = TotalProgressWidget()
         self.content_stack.addWidget(self.total_progress_view)
@@ -912,7 +878,7 @@ class MyToolApplication(QWidget):
         self.loaded_browser_ids = [] # 创建“全局”变量
         self.init_ui()
         self.start_backend_initialization()
-        
+
     def init_ui(self):
         self.setWindowTitle(f"{AppConfig.APP_NAME} v{AppConfig.APP_VERSION}")
         self.setWindowIcon(QIcon(os.path.join(AppConfig.BASE_DIR, 'icon', 'app-icon.png')))
@@ -930,7 +896,7 @@ class MyToolApplication(QWidget):
         self.tab_widget.addTab(self.config_tab, "配置")
         self.tab_widget.addTab(self.project_tab, "项目")
         self.tab_widget.addTab(self.results_tab, "执行结果") # 添加新标签页
-        
+
         self.tab_widget.tabBarClicked.connect(self.on_tab_bar_clicked)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         main_layout.addWidget(self.tab_widget)
@@ -956,17 +922,17 @@ class MyToolApplication(QWidget):
             projects = self.init_thread.projects # 从线程获取项目
             self.project_tab.populate_projects(projects)
         else: QMessageBox.critical(self, "后端初始化失败", message)
-        
+
     def on_tab_bar_clicked(self, index):
         if index == self.tab_widget.currentIndex(): return
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
             if hasattr(widget, 'is_editing') and widget.is_editing: widget.exit_edit_mode()
         self.tab_widget.setCurrentIndex(index)
-        
+
     def on_tab_changed(self, index):
         pass
-    
+
     def closeEvent(self, event):
         log_util.info("UI", "应用程序正在关闭，开始释放后端资源...")
         self.controller.shutdown()
