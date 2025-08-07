@@ -189,7 +189,7 @@ class Dispatcher:
                             result = TaskResult(browser_id=user_id, task_name=task_name, status="SUCCESS", timestamp=datetime.now(), details="任务成功完成。")
 
                     except Exception as e:
-                        user_friendly_details = str(e)
+                        user_friendly_details = f"{e.__class__.__name__}: {e}" if str(e) else e.__class__.__name__
                         self.log.error(user_id, f"任务 {task_name} 发生异常: {traceback.format_exc()}")
                         result = TaskResult(browser_id=user_id, task_name=task_name, status="FAILURE", timestamp=datetime.now(), details=user_friendly_details)
 

@@ -724,7 +724,7 @@ class ProjectTab(QWidget):
 
 
 class TotalProgressWidget(QWidget):
-    """任务总进度”视图的专用控件。"""
+    """任务总进度视图的专用控件。"""
     def __init__(self):
         super().__init__()
         self.task_row_map = {}  # 用于快速查找任务对应的行
