@@ -264,5 +264,6 @@ class Dispatcher:
                 continue
         
         self.executor.shutdown(wait=True)
+        self.result_queue.put(None)  # 所有任务已结束，发送哨兵信号
 
     

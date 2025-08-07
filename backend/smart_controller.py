@@ -98,8 +98,7 @@ class SmartController:
         """
         接收UI层的请求，创建并启动调度器来完成所有工作。
         """
-        self.log.info("智能控制器", f"接收到执行任务请求。")
-        
+
         # 确保之前的任务已经完全终止
         if self.result_processor_thread and self.result_processor_thread.is_alive():
             self.log.warn("智能控制器", "检测到上一次的任务仍在运行，将先执行强制关闭。")
@@ -132,7 +131,6 @@ class SmartController:
         # 在后台线程中启动调度器，防止阻塞
         threading.Thread(target=self.dispatcher.execute, name="DispatcherThread").start()
 
-        self.log.info("智能控制器", "任务已成功分发到调度器。")
         # 这里可以立即返回，或者根据需要返回一个任务ID等
         return {"status": "started"}
 
@@ -141,24 +139,19 @@ class SmartController:
         self.log.info("结果处理器", "结果处理线程已启动。")
 
         total_tasks = self.dispatcher.total_task_count if self.dispatcher else 0
+        self.log.info("结果处理器", f"启动时获取到的总任务数: {total_tasks}")
         if total_tasks == 0:
             self.log.info("结果处理器", "没有需要处理的任务，线程退出。")
             return
 
         while True:
-            # 检查退出条件
-            if self.interrupt_event.is_set() and self.result_queue.empty():
-                self.log.warn("结果处理器", "检测到中断信号且队列已空，退出循环。")
-                break
-            
-            if not self.interrupt_event.is_set() and self.completed_task_count >= total_tasks:
-                self.log.info("结果处理器", "已处理完所有任务，退出循环。")
-                break
-
             try:
-                result = self.result_queue.get(timeout=1)
-                if result is None: # 安全保障
-                    continue
+                # 阻塞式获取，直到有结果或收到哨兵信号
+                result = self.result_queue.get()
+
+                # 检查是否是结束信号
+                if result is None:
+                    break
 
                 result_data = result.to_dict()
 
@@ -170,8 +163,6 @@ class SmartController:
                 
                 self.result_queue.task_done()
 
-            except queue.Empty:
-                continue # 队列为空，继续循环以检查退出条件
             except Exception as e:
                 self.log.error("结果处理器", f"处理结果时发生未知错误: {e}", exc_info=True)
 
