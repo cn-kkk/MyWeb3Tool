@@ -182,8 +182,8 @@ class Dispatcher:
                         
                         task_return_value = task_method()
 
-                        if task_return_value is False:
-                            details = "任务方法主动返回False。"
+                        if isinstance(task_return_value, str):
+                            details = task_return_value
                             result = TaskResult(browser_id=user_id, task_name=task_name, status="FAILURE", timestamp=datetime.now(), details=details)
                         else:
                             result = TaskResult(browser_id=user_id, task_name=task_name, status="SUCCESS", timestamp=datetime.now(), details="任务成功完成。")

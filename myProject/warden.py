@@ -110,8 +110,9 @@ class WardenScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"异常: {self.project_name} - AI Chat 任务执行失败: {e}", exc_info=True)
-            return False
+            message = f"异常: {self.project_name} - AI Chat 任务执行失败: {e}"
+            log_util.error(self.user_id, message, exc_info=True)
+            return message
         finally:
             if chat_page and chat_page.tab_id in self.browser.tab_ids:
                 chat_page.close()
@@ -176,8 +177,9 @@ class WardenScript:
             return True
 
         except Exception as e:
-            log_util.error(self.user_id, f"异常: {self.project_name} - Play Game 任务执行失败: {e}", exc_info=True)
-            return False
+            message = f"异常: {self.project_name} - Play Game 任务执行失败: {e}"
+            log_util.error(self.user_id, message, exc_info=True)
+            return message
 
 
 if __name__ == "__main__":
