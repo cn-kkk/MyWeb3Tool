@@ -135,7 +135,7 @@ class PharosScript:
                 log_util.info(self.user_id, "—————— 签到任务已成功完成 ——————")
                 return True
             else:
-                message = "签到任务失败：未找到'Checked'按钮，状态未知。"
+                message = "签到后未找到'Checked'字样，请检查。"
                 log_util.error(self.user_id, message)
                 return message
 
@@ -151,7 +151,7 @@ class PharosScript:
                     log_util.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
                     return True
 
-            message = f"签到任务执行期间发生意外错误: {e}"
+            message = f"签到异常: {e}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
 
@@ -159,7 +159,7 @@ class PharosScript:
         """
         Zenith Swap任务：打开新页面，连接钱包，默认会swap0.005个PHRS到USDC，然后会swap回来。
         """
-        log_util.info(self.user_id, "开始执行Swap任务...")
+        log_util.info(self.user_id, "开始执行Zenith Swap任务...")
         swap_page = None
         try:
             # 步骤1: 打开新的SWAP_URL页面
@@ -183,12 +183,12 @@ class PharosScript:
                     connect_btn.click()
                     AntiSybilDpUtil.human_short_wait()
                     if not self.okx_util.click_OKX_in_selector2(self.browser, swap_page, self.user_id):
-                        message = "Swap任务失败：执行OKX钱包连接流程失败。"
+                        message = "执行OKX钱包连接流程失败。"
                         log_util.error(self.user_id, message)
                         return message
                 else:
                     # 两种按钮都找不到，则任务失败
-                    message = "Swap任务失败：既未找到已连接的钱包按钮，也未找到'Connect'按钮。"
+                    message = "既未找到已连接的钱包按钮，也未找到'Connect'按钮。"
                     log_util.error(self.user_id, message)
                     return message
 
@@ -204,7 +204,7 @@ class PharosScript:
                 'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]'
             ) # type: ignore
             if not (select_token_btn and select_token_btn.states.is_displayed):
-                message = "Swap任务失败：未找到'Select token'按钮。"
+                message = "未找到'Select token'按钮。"
                 log_util.error(self.user_id, message)
                 return message
             select_token_btn.click()
@@ -213,7 +213,7 @@ class PharosScript:
             # 步骤6: 在弹窗中选择USDC
             usdc_option = swap_page.ele('xpath://div[@data-testid="common-base-USDC"]') # type: ignore
             if not (usdc_option and usdc_option.states.is_displayed):
-                message = "Zenith Swap任务失败：未找到'USDC'选项。"
+                message = "未找到'USDC'选项。"
                 log_util.error(self.user_id, message)
                 return message
             usdc_option.click()
@@ -222,7 +222,7 @@ class PharosScript:
             # 步骤7: 在PHRS输入框中输入金额
             amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
             if not amount_input:
-                message = "Zenith Swap任务失败：未找到金额输入框。"
+                message = "未找到金额输入框。"
                 log_util.error(self.user_id, message)
                 return message
             # 采用“点击->清空->输入”的终极策略来处理顽固输入框
@@ -238,18 +238,18 @@ class PharosScript:
             AntiSybilDpUtil.human_huge_wait() # 使用长等待，给网页足够的时间返回汇率
 
             # 步骤9: 点击Swap按钮
-            swap_btn = swap_page.ele('#swap-button', timeout=20)
+            swap_btn = swap_page.ele('#swap-button', timeout=30)
             if not (swap_btn and swap_btn.states.is_clickable):
-                message = "Zenith Swap任务失败：未能等到Swap按钮出现。"
+                message = "未能等到Swap按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
             swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10: 在弹窗中点击 "Confirm Swap"
-            confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=20)
+            confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=30)
             if not confirm_swap_btn:
-                message = "Zenith Swap任务失败：未能等到Confirm Swap按钮出现。"
+                message = "未能等到Confirm Swap按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
             confirm_swap_btn.wait.clickable(timeout=10)
@@ -258,7 +258,7 @@ class PharosScript:
 
             # 步骤11: 处理OKX钱包交易确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                message = "Zenith Swap任务失败：钱包交易确认失败。"
+                message = "钱包交易确认失败。"
                 log_util.error(self.user_id, message)
                 return message
             AntiSybilDpUtil.human_huge_wait()
@@ -288,16 +288,17 @@ class PharosScript:
             swap_page.wait.doc_loaded()
             AntiSybilDpUtil.human_long_wait()
 
-            swap_btn.click()
+            swap_btn2 = swap_page.ele('#swap-button', timeout=30)
+            swap_btn2.click()
             AntiSybilDpUtil.human_huge_wait()
 
-            new_confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=10)
+            new_confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=30)
             new_confirm_swap_btn.wait.clickable(timeout=10)
             new_confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                message = "Zenith Swap任务失败：钱包交易确认失败。"
+                message = "钱包交易确认失败2。"
                 log_util.error(self.user_id, message)
                 return message
             AntiSybilDpUtil.human_huge_wait()
@@ -306,7 +307,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"Zenith Swap任务执行时发生意外错误: {e}"
+            message = f"Zenith Swap发生错误: {e}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
@@ -323,7 +324,7 @@ class PharosScript:
         try:
             # 步骤1: 打开新的SWAP_URL页面
             swap_page = self.browser.new_tab(self.FARO_SWAP_URL)
-            AntiSybilDpUtil.human_long_wait()
+            AntiSybilDpUtil.human_huge_wait()
 
             # 步骤2: 检查并连接钱包
             connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=5)
@@ -338,7 +339,7 @@ class PharosScript:
             swap_page.actions.key_up("Escape")
 
             # 步骤3: 确保要卖出的代币是 PHRS
-            from_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[1]')
+            from_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[1]', timeout=10)
             current_from_token = from_token_selector.s_ele('xpath:./div[1]').text
             if current_from_token != "PHRS":
                 from_token_selector.click()
@@ -348,7 +349,7 @@ class PharosScript:
                 AntiSybilDpUtil.human_short_wait()
 
             # 步骤4: 确保要接收的代币是 USDT
-            to_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[2]')
+            to_token_selector = swap_page.ele('xpath:(//div[contains(@class, "css-70qvj9")])[2]', timeout=10)
             current_to_token = to_token_selector.s_ele('xpath:./div[1]').text
             if current_to_token != "USDT":
                 to_token_selector.click()
@@ -366,18 +367,18 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤6: 点击 Review Swap 按钮 (在15秒内持续查找)
-            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=20)
+            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=30)
             if not review_button:
-                message = "Faro Swap任务失败：未能等到'Review Swap'按钮出现。"
+                message = "未能等到faro的'Review Swap'按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
             review_button.click()
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤7: 点击 Confirm Swap 按钮 (在15秒内持续查找)
-            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=20)
+            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=30)
             if not confirm_button:
-                message = "Faro Swap任务失败：未能等到'Confirm Swap'按钮出现。"
+                message = "未能等到faro的'Confirm Swap'按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
             confirm_button.click()
@@ -405,11 +406,11 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤11: 再次swap
-            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=20)
+            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=30)
             review_button.click()
             AntiSybilDpUtil.human_short_wait()
 
-            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=20)
+            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=30)
             confirm_button.click()
             AntiSybilDpUtil.human_long_wait()
 
@@ -447,7 +448,7 @@ class PharosScript:
             self._handle_switch_network_popup(self.page)
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             self.page.scroll.down(800)
-
+            AntiSybilDpUtil.human_short_wait()
             send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
             if not send_button:
                 message = "发送代币任务失败：未找到'Send'按钮。"
@@ -455,11 +456,10 @@ class PharosScript:
                 return message
 
             # 步骤2: 点击Send按钮
-            AntiSybilDpUtil.human_short_wait()
             self.page.actions.click(send_button)
             AntiSybilDpUtil.human_long_wait()
             # 步骤3: 点击金额选项
-            amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=15) # type: ignore
+            amount_option = self.page.ele('xpath://div[text()="0.001PHRS"]', timeout=30) # type: ignore
             if not amount_option or not amount_option.states.is_displayed:
                 message = "发送代币任务失败：未找到'0.001PHRS'金额选项。"
                 log_util.error(self.user_id, message)

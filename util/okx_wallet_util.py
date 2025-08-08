@@ -41,6 +41,7 @@ class OKXWalletUtil:
         点了‘取消’直接抛出异常，未找到okx页面返回false。
         """
         wallet_page = None
+        AntiSybilDpUtil.human_short_wait()
         try:
             wallet_page = browser.latest_tab
             AntiSybilDpUtil.human_long_wait()
@@ -52,6 +53,7 @@ class OKXWalletUtil:
             # 循环处理，直到钱包页面关闭
             while wallet_page.tab_id in browser.tab_ids:
                 # 重新获取一次
+                AntiSybilDpUtil.human_short_wait()
                 wallet_page = browser.latest_tab
                 # 优先处理“取消交易”弹窗，避免阻塞
                 cancel_tx_button = wallet_page.ele('text:取消交易', timeout=5)

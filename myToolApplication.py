@@ -736,6 +736,7 @@ class TotalProgressWidget(QWidget):
 
         headers = ['序号', '浏览器id', '任务名称', '执行结果', '失败详情', '完成时间']
         self.table = StyledTableWidget(headers)
+        self.table.setStyleSheet(self.table.styleSheet() + "QTableWidget::item { padding: 0px 5px; }")
         # FIX: Set selection to single, full rows to fix all selection bugs
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
