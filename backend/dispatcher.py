@@ -198,8 +198,14 @@ class Dispatcher:
         except Exception as e:
             self.log.error(user_id, f"处理工作包时发生严重错误: {e}", exc_info=True)
         finally:
-            if browser: browser.quit()
+            if browser:
+                try:
+                    browser.quit()
+                except Exception as e:
+                    self.log.error(user_id, f"关闭浏览器 {browser.address} 时发生异常: {e}", exc_info=True)
+            
             self.concurrency_semaphore.release()
+            self.log.info(user_id, "信号量已成功释放。")
 
     def shutdown(self):
         """设置中断事件并清空待处理任务以停止所有工作。"""

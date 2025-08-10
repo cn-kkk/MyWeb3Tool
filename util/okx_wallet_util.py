@@ -1,5 +1,5 @@
 import os
-
+import time
 
 # DrissionPage是可选依赖，只有在使用dp方法时才需要
 try:
@@ -37,60 +37,53 @@ class OKXWalletUtil:
 
     def confirm_transaction_drission(self, browser, user_id: str):
         """
-        等待并处理OKX钱包的通用弹窗（如交易确认、连接请求等）。
-        点了‘取消’直接抛出异常，未找到okx页面返回false。
+        等待并处理OKX钱包的通用弹窗，可处理连续出现的多个弹窗。
         """
+        # 嵌套函数，用于检查是否存在钱包标签页
+        def wallet_tab_exists():
+            return any(self.EXTENSION_ID in tab.url for tab in browser.get_tabs())
+
         wallet_page = None
         AntiSybilDpUtil.human_short_wait()
+
         try:
-            wallet_page = browser.latest_tab
-            AntiSybilDpUtil.human_long_wait()
+            while wallet_tab_exists():
+                # 找到钱包页面
+                wallet_page = next((tab for tab in browser.get_tabs() if self.EXTENSION_ID in tab.url), None)
 
-            if self.EXTENSION_ID not in wallet_page.url:
-                log_util.warn(user_id,"未找到okx钱包页面。")
-                return False
+                if not wallet_page:
+                    continue
 
-            # 循环处理，直到钱包页面关闭
-            while wallet_page.tab_id in browser.tab_ids:
-                # 重新获取一次
-                AntiSybilDpUtil.human_short_wait()
-                wallet_page = browser.latest_tab
-                # 优先处理“取消交易”弹窗，避免阻塞
-                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=5)
+                # 优先处理“取消交易”弹窗
+                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=3)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
-                    AntiSybilDpUtil.human_short_wait()
                     cancel_tx_button.click()
                     AntiSybilDpUtil.human_long_wait()
-                    continue  # 继续循环，检查页面是否关闭或有新弹窗
+                    continue
 
+                # 处理“确认”或“连接”
                 action_button = wallet_page.ele(
-                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=5
+                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=3
                 )
                 if action_button and action_button.states.is_clickable:
-                    AntiSybilDpUtil.human_short_wait()
                     action_button.click()
                     AntiSybilDpUtil.human_long_wait()
                     continue
 
-                cancel_button = wallet_page.ele('text:取消', timeout=5)
+                # 处理“取消”
+                cancel_button = wallet_page.ele('text:取消', timeout=3)
                 if cancel_button and cancel_button.states.is_clickable:
-                    AntiSybilDpUtil.human_short_wait()
                     cancel_button.click()
                     AntiSybilDpUtil.human_long_wait()
-                    raise Exception("钱包当前只能点击取消。")
+                    continue
                 
-                AntiSybilDpUtil.human_short_wait()
-                if wallet_page.tab_id not in browser.tab_ids:
-                    break
-            
+                time.sleep(1)
             return True
-
+            
         except Exception as e:
-            # 没有is_alive方法
             if wallet_page and wallet_page.tab_id in browser.tab_ids:
                 wallet_page.close()
-            # 将所有异常（包括自定义的）向上抛出，由调用者处理
-            raise Exception(f"处理钱包弹窗时发生错误: {e}")
+            raise Exception(f"处理钱包弹窗时发生严重错误: {e}")
     
     def open_and_unlock_drission(self, browser, user_id: str):
         """
