@@ -83,7 +83,7 @@ class OKXWalletUtil:
         except Exception as e:
             if wallet_page and wallet_page.tab_id in browser.tab_ids:
                 wallet_page.close()
-            raise Exception(f"处理钱包弹窗时发生严重错误: {e}")
+            raise Exception(f"钱包操作错误: {e}")
     
     def open_and_unlock_drission(self, browser, user_id: str):
         """

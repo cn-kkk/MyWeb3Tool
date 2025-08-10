@@ -420,7 +420,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"Faro Swap任务执行时发生意外错误: {e}"
+            message = f"Faro Swap错误: {e}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
@@ -500,7 +500,7 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"发送代币任务执行时发生意外错误: {e}"
+            message = f"发送代币错误: {e}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
 

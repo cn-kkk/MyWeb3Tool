@@ -26,7 +26,7 @@ class SmartController:
 
         # 用于存储实时任务状态
         self.current_task_status = {}
-        self.status_lock = threading.Lock()
+        self.status_lock = threading.Lock() # 防止后端更新的时候前端来读到脏数据
         self.result_processor_thread = None
         self.completed_task_count = 0
 
@@ -173,12 +173,19 @@ class SmartController:
             return copy.deepcopy(self.current_task_status)
 
     def get_execution_status(self):
-        """获取任务执行的计数状态。"""
+        """获取任务执行的计数状态，并明确指示整个序列是否已完成。"""
         total_tasks = self.dispatcher.total_task_count if self.dispatcher else 0
+        
+        # 检查结果处理线程是否存在且仍在活动
+        is_processing_alive = self.result_processor_thread and self.result_processor_thread.is_alive()
+        
         with self.status_lock:
+            is_truly_done = bool(self.dispatcher and not is_processing_alive and self.completed_task_count >= total_tasks)
+
             return {
                 'completed': self.completed_task_count,
-                'total': total_tasks
+                'total': total_tasks,
+                'is_done': is_truly_done
             }
 
 

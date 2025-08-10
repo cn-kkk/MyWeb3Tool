@@ -43,7 +43,7 @@ class Dispatcher:
         self.log = log_util
         self.screen_width, self.screen_height = pyautogui.size()
         self.executor = ThreadPoolExecutor(max_workers=self.concurrent_browsers, thread_name_prefix='BrowserWorker')
-        self.concurrency_semaphore = threading.Semaphore(self.concurrent_browsers)
+        self.concurrency_semaphore = threading.Semaphore(self.concurrent_browsers)  # 确保最多同步浏览器数
         self.browser_ids = []
         self.assignments = []
         self.assignment_lock = threading.Lock()  # 用于线程安全地操作任务列表

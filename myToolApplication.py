@@ -696,12 +696,22 @@ class ProjectTab(QWidget):
         QMessageBox.information(self, "任务完成", "任务序列已全部执行完毕。")
 
     def query_progress(self):
+        # 首先，无条件获取并更新任务进度数据
+        # 这能确保即便是最后一批次的结果也能被展示
         progress_data = app_controller.get_task_progress()
         if progress_data:
             self.results_tab.update_task_progress(progress_data)
 
+        # 然后，获取带有权威完成状态的执行状态
         status = app_controller.get_execution_status()
-        if status['total'] > 0 and status['completed'] >= status['total']:
+        
+        # 只有在后端明确告知“已完成”时，才停止轮询并结束
+        if status.get('is_done', False):
+            # 为确保万无一失，在最后再更新一次UI
+            final_progress_data = app_controller.get_task_progress()
+            if final_progress_data:
+                self.results_tab.update_task_progress(final_progress_data)
+            
             self.on_sequence_finished()
 
     def update_button_states(self):
