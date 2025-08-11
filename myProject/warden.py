@@ -110,7 +110,8 @@ class WardenScript:
             return True
 
         except Exception as e:
-            message = f"异常: {self.project_name} - AI Chat失败: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"异常: {self.project_name} - AI Chat失败: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
@@ -177,7 +178,8 @@ class WardenScript:
             return True
 
         except Exception as e:
-            message = f"异常: {self.project_name} - Play Game失败: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"异常: {self.project_name} - Play Game失败: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
 

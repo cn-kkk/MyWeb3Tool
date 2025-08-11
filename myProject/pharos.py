@@ -151,7 +151,8 @@ class PharosScript:
                     log_util.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
                     return True
 
-            message = f"签到异常: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"签到异常: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
 
@@ -307,7 +308,8 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"Zenith Swap发生错误: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"Zenith Swap发生错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
@@ -420,7 +422,8 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"Faro Swap错误: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"Faro Swap错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
@@ -500,7 +503,8 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"发送代币错误: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"发送代币错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
 
@@ -565,7 +569,8 @@ class PharosScript:
             return True
 
         except Exception as e:
-            message = f"购买Web3用户名任务执行时发生意外错误: {e}"
+            error_details = str(e).replace('\n', ' ')
+            message = f"购买Web3用户名任务执行时发生意外错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
