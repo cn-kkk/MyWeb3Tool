@@ -39,13 +39,11 @@
 
 ### 对于开发者
 
-    
     python myToolApplication.py
-    
 
 ### 对于普通用户
 
-您可以直接从本项目的 `GitHub Releases` 页面下载已打包好的 `.exe` 可执行文件，无需安装Python环境即可运行。
+直接从本项目的 `Releases` 页面下载已打包好的zip压缩包，解压运行exe软件。
 
 ## PS
 软件根目录下会新建logs文件夹里面存放日志
