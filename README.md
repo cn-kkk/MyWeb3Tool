@@ -48,12 +48,6 @@
 
 ### 对于开发者
 
-1.  克隆本仓库。
-2.  安装所需的Python依赖：
-    ```shell
-    pip install -r requirements.txt
-    ```
-3.  运行主程序启动UI界面：
     ```shell
     python myToolApplication.py
     ```
