@@ -39,7 +39,7 @@
 
 ### 对于开发者
 
-    ```shell
+    ```
     python myToolApplication.py
     ```
 
