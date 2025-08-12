@@ -39,9 +39,9 @@
 
 ### 对于开发者
 
-    ```
+    
     python myToolApplication.py
-    ```
+    
 
 ### 对于普通用户
 
