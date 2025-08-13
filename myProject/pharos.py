@@ -158,7 +158,7 @@ class PharosScript:
 
     def pharos_task_zenith_swap(self):
         """
-        Zenith Swap任务：打开新页面，连接钱包，默认会swap0.005个PHRS到USDC，然后会swap回来。
+        Zenith Swap任务：默认会swap PHRS到USDC，然后会swap回来。
         """
         log_util.info(self.user_id, "开始执行Zenith Swap任务...")
         swap_page = None

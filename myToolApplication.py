@@ -795,22 +795,20 @@ class TotalProgressWidget(QWidget):
 
         self.table.setUpdatesEnabled(True)
 
-    def update_task_progress(self, completed_tasks_data):
-        for browser_id, results in completed_tasks_data.items():
-            for result in results:
-                task_name = result['task_name']
+    def update_task_progress(self, tasks_data):
+        # 新的数据结构: {'browser_id': {'task_name': task_details}}
+        for browser_id, tasks in tasks_data.items():
+            for task_name, result in tasks.items():
                 key = (browser_id, task_name)
 
                 if key in self.task_row_map:
                     row = self.task_row_map[key]
 
-                    # FIX: Simply update the text of the existing, non-editable item
-                    result_text = "成功" if result['status'] == 'SUCCESS' else "失败"
+                    # 更新UI表格中的项目
+                    result_text = "成功" if result.get('status') == 'SUCCESS' else "失败"
                     self.table.item(row, 3).setText(result_text)
-                    self.table.item(row, 4).setText(result['details'])
-                    self.table.item(row, 5).setText(result['timestamp'])
-
-                    del self.task_row_map[key]
+                    self.table.item(row, 4).setText(result.get('details', ''))
+                    self.table.item(row, 5).setText(result.get('timestamp', ''))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
