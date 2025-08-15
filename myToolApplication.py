@@ -771,7 +771,7 @@ class TotalProgressWidget(QWidget):
             seq_item = QTableWidgetItem(str(i + 1))
             id_item = QTableWidgetItem(display_browser_id)
             name_item = QTableWidgetItem(task_name)
-            result_item = QTableWidgetItem("执行中...")
+            result_item = QTableWidgetItem("等待执行...")
             details_item = QTableWidgetItem("")
             time_item = QTableWidgetItem("")
 
@@ -803,12 +803,35 @@ class TotalProgressWidget(QWidget):
 
                 if key in self.task_row_map:
                     row = self.task_row_map[key]
+                    
+                    status = result.get('status')
+                    details = result.get('details', '')
+                    timestamp = result.get('timestamp', '')
 
-                    # 更新UI表格中的项目
-                    result_text = "成功" if result.get('status') == 'SUCCESS' else "失败"
-                    self.table.item(row, 3).setText(result_text)
-                    self.table.item(row, 4).setText(result.get('details', ''))
-                    self.table.item(row, 5).setText(result.get('timestamp', ''))
+                    status_item = self.table.item(row, 3)
+                    details_item = self.table.item(row, 4)
+                    time_item = self.table.item(row, 5)
+                    
+                    font = status_item.font()
+                    font.setBold(True)
+
+                    if status == 'SUCCESS':
+                        status_item.setText("成功")
+                        status_item.setForeground(QColor('#27ae60'))
+                    elif status == 'FAILURE':
+                        status_item.setText("失败")
+                        status_item.setForeground(QColor('#c0392b'))
+                    elif status == 'EXECUTING':
+                        status_item.setText("执行中...")
+                        status_item.setForeground(QColor('#2980b9'))
+                    else:
+                        status_item.setText("未知")
+                        status_item.setForeground(QColor('#7f8c8d'))
+                    
+                    status_item.setFont(font)
+                    details_item.setText(details)
+                    time_item.setText(timestamp)
+
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

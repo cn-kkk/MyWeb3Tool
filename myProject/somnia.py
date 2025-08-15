@@ -48,7 +48,7 @@ class SomniaScript:
 
         # 如果没有找到，则尝试通过菜单按钮
         if not clickable_button:
-            self.page.ele('css:.lucide-menu').parent('tag:button').click()
+            self.page.ele('css:.lucide-menu', timeout=10).parent('tag:button').click()
             AntiSybilDpUtil.human_brief_wait()
             connect_buttons = self.page.eles('text:Connect')
             clickable_button = next(btn for btn in connect_buttons if btn.states.is_clickable)
@@ -58,7 +58,7 @@ class SomniaScript:
 
         # 步骤5: 选择OKX钱包并确认
         log_util.info(self.user_id, "选择OKX钱包...")
-        self.page.ele('text:OKX Wallet').click()
+        self.page.ele('text:OKX Wallet', timeout=10).click()
         AntiSybilDpUtil.human_short_wait()
         self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 

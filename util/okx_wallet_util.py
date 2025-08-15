@@ -55,7 +55,7 @@ class OKXWalletUtil:
                     continue
 
                 # 优先处理“取消交易”弹窗
-                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=3)
+                cancel_tx_button = wallet_page.ele('text:取消交易', timeout=10)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
                     cancel_tx_button.click()
                     AntiSybilDpUtil.human_long_wait()
@@ -63,7 +63,7 @@ class OKXWalletUtil:
 
                 # 处理“确认”或“连接”
                 action_button = wallet_page.ele(
-                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=3
+                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=10
                 )
                 if action_button and action_button.states.is_clickable:
                     action_button.click()
@@ -71,7 +71,7 @@ class OKXWalletUtil:
                     continue
 
                 # 处理“取消”
-                cancel_button = wallet_page.ele('text:取消', timeout=3)
+                cancel_button = wallet_page.ele('text:取消', timeout=10)
                 if cancel_button and cancel_button.states.is_clickable:
                     cancel_button.click()
                     AntiSybilDpUtil.human_long_wait()
@@ -112,18 +112,18 @@ class OKXWalletUtil:
                 if password_input:
                     password_input.input(self.PASSWORD)
                     AntiSybilDpUtil.human_short_wait()
-                    unlock_button = wallet_tab.ele('tag:button@type=submit')
+                    unlock_button = wallet_tab.ele('tag:button@type=submit', timeout=10)
                     unlock_button.click()
                     AntiSybilDpUtil.human_short_wait()
 
                 # 解锁后，检查并处理可能出现的“取消交易”弹窗
-                cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=3)
+                cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=10)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
                     AntiSybilDpUtil.human_short_wait()
                     cancel_tx_button.click()
                     AntiSybilDpUtil.human_short_wait()
 
-                cancel_button = wallet_tab.ele('text:取消', timeout=3)
+                cancel_button = wallet_tab.ele('text:取消', timeout=10)
                 if cancel_button and cancel_tx_button.states.is_clickable:
                     AntiSybilDpUtil.human_short_wait()
                     cancel_button.click()
@@ -149,7 +149,7 @@ class OKXWalletUtil:
         clicked_element = None
 
         # --- 策略1: 全局文本搜索 (DP原生，最高优先级) ---
-        okx_text_element = page.ele('text:OKX Wallet', timeout=5)
+        okx_text_element = page.ele('text:OKX Wallet', timeout=10)
         if okx_text_element:
             # 优先检查文本元素自身是否可点击 (处理父元素是“假”按钮的情况)
             if okx_text_element.states.is_clickable:
@@ -168,7 +168,7 @@ class OKXWalletUtil:
                     if not host.states.is_displayed: continue
                     try:
                         shadow_root = host.shadow_root
-                        okx_text_in_shadow = shadow_root.ele('text:OKX Wallet', timeout=2)
+                        okx_text_in_shadow = shadow_root.ele('text:OKX Wallet', timeout=10)
                         if okx_text_in_shadow:
                             # 同样采用“先内后外”的点击逻辑
                             if okx_text_in_shadow.states.is_clickable:

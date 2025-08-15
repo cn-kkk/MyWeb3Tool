@@ -69,7 +69,7 @@ class PharosScript:
 
                 # 处理可选的"Continue"按钮
 
-                continue_btn = self.page.ele('text:Continue', timeout=5)
+                continue_btn = self.page.ele('text:Continue', timeout=10)
                 if continue_btn and continue_btn.states.is_clickable:
                     continue_btn.click()
                     AntiSybilDpUtil.human_long_wait()
@@ -87,7 +87,7 @@ class PharosScript:
         """
         try:
             # 使用CSS选择器和文本内容定位按钮，增加查找的鲁棒性
-            switch_button = page.ele('xpath://button[contains(text(), "Switch")]', timeout=3)
+            switch_button = page.ele('xpath://button[contains(text(), "Switch")]', timeout=10)
             if switch_button and switch_button.states.is_clickable:
                 switch_button.click()
                 AntiSybilDpUtil.human_short_wait()  # 等待弹窗消失或页面响应
@@ -145,7 +145,7 @@ class PharosScript:
             if "Timeout" in str(e):
                 # 再次检查是否已签到
                 checked_btn = self.page.ele(  # type: ignore
-                    'xpath://button[contains(text(), "Checked")]', timeout=5
+                    'xpath://button[contains(text(), "Checked")]', timeout=10
                 )
                 if checked_btn and checked_btn.states.is_displayed:
                     log_util.info(self.user_id, "—————— 签到任务已成功完成（之前已签到） ——————")
@@ -173,7 +173,7 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤3: 检查是否钱包连接
-            connected_button = swap_page.ele('xpath://button[@data-testid="web3-status-connected"]', timeout=5) # type: ignore
+            connected_button = swap_page.ele('xpath://button[@data-testid="web3-status-connected"]', timeout=10) # type: ignore
             if not (connected_button and connected_button.states.is_displayed):
                 # 如果未连接，则执行手动连接流程
                 connect_btn = swap_page.ele( # type: ignore
@@ -202,7 +202,7 @@ class PharosScript:
             swap_page.scroll.down(300)
             AntiSybilDpUtil.human_short_wait()
             select_token_btn = swap_page.ele(
-                'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]'
+                'xpath://button[contains(@class, "open-currency-select-button") and .//span[text()="Select token"]]', timeout=10
             ) # type: ignore
             if not (select_token_btn and select_token_btn.states.is_displayed):
                 message = "未找到'Select token'按钮。"
@@ -212,7 +212,7 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤6: 在弹窗中选择USDC
-            usdc_option = swap_page.ele('xpath://div[@data-testid="common-base-USDC"]') # type: ignore
+            usdc_option = swap_page.ele('xpath://div[@data-testid="common-base-USDC"]', timeout=10) # type: ignore
             if not (usdc_option and usdc_option.states.is_displayed):
                 message = "未找到'USDC'选项。"
                 log_util.error(self.user_id, message)
@@ -221,7 +221,7 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤7: 在PHRS输入框中输入金额
-            amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
+            amount_input = swap_page.ele('xpath://input[@id="swap-currency-input"]', timeout=10)
             if not amount_input:
                 message = "未找到金额输入框。"
                 log_util.error(self.user_id, message)
@@ -248,12 +248,11 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10: 在弹窗中点击 "Confirm Swap"
-            confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=30)
+            confirm_swap_btn = swap_page.ele('#confirm-swap-or-send', timeout=30)
             if not confirm_swap_btn:
                 message = "未能等到Confirm Swap按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            confirm_swap_btn.wait.clickable(timeout=10)
             confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
@@ -270,15 +269,15 @@ class PharosScript:
             self.page.wait.doc_loaded()
 
             # 步骤13: 点击对调按钮，然后将usdc换回PHRS，再次执行步骤7后面逻辑
-            swap_currency_button = swap_page.ele('xpath://div[@data-testid="swap-currency-button"]')
+            swap_currency_button = swap_page.ele('xpath://div[@data-testid="swap-currency-button"]', timeout=10)
             swap_currency_button.click()  # 点击按钮
             AntiSybilDpUtil.human_short_wait()
 
-            max_btn = swap_page.wait.ele_displayed('@name=Swap Max Token Amount Selected', timeout=10)
+            max_btn = swap_page.ele('@name=Swap Max Token Amount Selected', timeout=10)
             if max_btn:
                 max_btn.click()
             else:
-                new_amount_input = swap_page.wait.ele_displayed('xpath://input[@id="swap-currency-input"]', timeout=10)
+                new_amount_input = swap_page.ele('xpath://input[@id="swap-currency-input"]', timeout=10)
                 new_amount_input.click()
                 AntiSybilDpUtil.human_brief_wait()
                 new_amount_input.clear()
@@ -293,8 +292,7 @@ class PharosScript:
             swap_btn2.click()
             AntiSybilDpUtil.human_huge_wait()
 
-            new_confirm_swap_btn = swap_page.wait.ele_displayed('#confirm-swap-or-send', timeout=30)
-            new_confirm_swap_btn.wait.clickable(timeout=10)
+            new_confirm_swap_btn = swap_page.ele('#confirm-swap-or-send', timeout=30)
             new_confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
@@ -329,9 +327,9 @@ class PharosScript:
             AntiSybilDpUtil.human_huge_wait()
 
             # 步骤2: 检查并连接钱包
-            connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=5)
+            connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=10)
             if not (connected_button and connected_button.states.is_displayed):
-                connect_btn = swap_page.ele('xpath://button[contains(., "Connect a wallet")]')
+                connect_btn = swap_page.ele('xpath://button[contains(., "Connect a wallet")]', timeout=10)
                 connect_btn.click()
                 AntiSybilDpUtil.human_short_wait()
                 self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id)
@@ -346,7 +344,7 @@ class PharosScript:
             if current_from_token != "PHRS":
                 from_token_selector.click()
                 AntiSybilDpUtil.human_short_wait()
-                phrs_option = swap_page.ele('xpath://div[text()="PHRS"]')
+                phrs_option = swap_page.ele('xpath://div[text()="PHRS"]', timeout=10)
                 phrs_option.click()
                 AntiSybilDpUtil.human_short_wait()
 
@@ -356,12 +354,12 @@ class PharosScript:
             if current_to_token != "USDT":
                 to_token_selector.click()
                 AntiSybilDpUtil.human_short_wait()
-                usdt_option = swap_page.ele('xpath://div[text()="USDT"]')
+                usdt_option = swap_page.ele('xpath://div[text()="USDT"]', timeout=10)
                 usdt_option.click()
                 AntiSybilDpUtil.human_short_wait()
 
             # 步骤5: 输入要兑换的金额
-            amount_input = swap_page.ele('css:input.css-1fkmsfz')
+            amount_input = swap_page.ele('css:input.css-1fkmsfz', timeout=10)
             amount_input.click()
             AntiSybilDpUtil.human_brief_wait()
             random_amount_str = AntiSybilDpUtil.get_perturbation_number(0.006, 0.001)
@@ -452,7 +450,7 @@ class PharosScript:
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             self.page.scroll.down(800)
             AntiSybilDpUtil.human_short_wait()
-            send_button = self.page.wait.ele_displayed('xpath://button[text()="Send"]', timeout=20)
+            send_button = self.page.ele('xpath://button[text()="Send"]', timeout=20)
             if not send_button:
                 message = "发送代币任务失败：未找到'Send'按钮。"
                 log_util.error(self.user_id, message)
@@ -528,7 +526,7 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤2: 确保钱包已连接
-            profile_element = name_page.s_ele('xpath://div[@data-testid="header-profile"]', timeout=5)
+            profile_element = name_page.s_ele('xpath://div[@data-testid="header-profile"]', timeout=10)
             if not profile_element:
                 log_util.info(self.user_id, "钱包未连接，开始连接流程...")
                 connect_btn = name_page.ele('text:连接', timeout=10)
@@ -540,7 +538,7 @@ class PharosScript:
             
             # 步骤3: 循环查找可用用户名并注册
             name_page.scroll.down(80)
-            name_input = name_page.wait.ele_displayed('xpath://input[@id="thorin2"]', timeout=10)
+            name_input = name_page.ele('xpath://input[@id="thorin2"]', timeout=10)
             today = datetime.now()
             weekday = today.isoweekday()
 
@@ -583,3 +581,4 @@ if __name__ == "__main__":
     print(
         "PharosScript 定义完成。请在您的主程序中实例化，或通过 pharosScript_test.py 进行测试。"
     )
+

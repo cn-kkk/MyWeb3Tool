@@ -168,19 +168,22 @@ class Dispatcher:
                 project_name_inferred = task_name.split('_task_')[0].capitalize()
                 project_class = self.projects_map.get(project_name_inferred)
 
+                # 立即将状态设置为执行中并更新UI
                 task_details = {
                     'task_name': task_name,
-                    'status': '',
-                    'details': '',
-                    'timestamp': ''
+                    'status': 'EXECUTING',
+                    'details': '任务正在执行...',
+                    'timestamp': datetime.now().isoformat(timespec='milliseconds')
                 }
+                current_browser_tasks = message_store.getByTopicAndKey('tasks', user_id) or {}
+                current_browser_tasks[task_name] = task_details
+                message_store.put('tasks', user_id, current_browser_tasks)
 
-                if not project_class:
-                    task_details['status'] = "FAILURE"
-                    task_details['details'] = f"无法从任务名 '{task_name}' 推断出有效的项目类。"
-                    task_details['timestamp'] = datetime.now().isoformat(timespec='milliseconds')
-                else:
-                    try:
+                try:
+                    if not project_class:
+                        task_details['status'] = "FAILURE"
+                        task_details['details'] = f"无法从任务名 '{task_name}' 推断出有效的项目类。"
+                    else:
                         if project_name_inferred not in script_instances:
                             script_instances[project_name_inferred] = project_class(browser=browser, user_id=user_id)
 
@@ -194,18 +197,18 @@ class Dispatcher:
                         else:
                             task_details['status'] = "SUCCESS"
                             task_details['details'] = "任务成功完成。"
-                        task_details['timestamp'] = datetime.now().isoformat(timespec='milliseconds')
 
-                    except Exception as e:
-                        task_details['status'] = "FAILURE"
-                        task_details['details'] = f"{e.__class__.__name__}: {e}" if str(e) else e.__class__.__name__
-                        task_details['timestamp'] = datetime.now().isoformat(timespec='milliseconds')
-                        self.log.error(user_id, f"任务 {task_name} 发生异常: {traceback.format_exc()}")
-                
-                # 使用新的 message_store 更新任务状态
-                current_browser_tasks = message_store.getByTopicAndKey('tasks', user_id) or {}
-                current_browser_tasks[task_name] = task_details
-                message_store.put('tasks', user_id, current_browser_tasks)
+                except Exception as e:
+                    task_details['status'] = "FAILURE"
+                    task_details['details'] = f"{e.__class__.__name__}: {e}" if str(e) else e.__class__.__name__
+                    self.log.error(user_id, f"任务 {task_name} 发生异常: {traceback.format_exc()}")
+
+                finally:
+                    # 使用 finally 确保最终状态（成功或失败）一定会被更新
+                    task_details['timestamp'] = datetime.now().isoformat(timespec='milliseconds')
+                    current_browser_tasks = message_store.getByTopicAndKey('tasks', user_id) or {}
+                    current_browser_tasks[task_name] = task_details
+                    message_store.put('tasks', user_id, current_browser_tasks)
 
         except Exception as e:
             self.log.error(user_id, f"处理工作包时发生严重错误: {e}", exc_info=True)
