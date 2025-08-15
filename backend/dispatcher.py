@@ -159,36 +159,44 @@ class Dispatcher:
                 return
 
             script_instances = {}
+            task_execution_counts = Counter()
             for task in assignment:
                 if self.interrupt_event.is_set():
                     self.log.warn(user_id, "检测到中断信号，任务序列已中止。")
                     break
 
-                task_name = task.get("task_name")
-                project_name_inferred = task_name.split('_task_')[0].capitalize()
+                original_task_name = task.get("task_name")
+                
+                # 按照前端的规则，为同一个任务的多次执行创建唯一键 (e.g., task_name_0, task_name_1)
+                execution_index = task_execution_counts[original_task_name]
+                unique_task_name = f"{original_task_name}_{execution_index}"
+                task_execution_counts[original_task_name] += 1
+
+                project_name_inferred = original_task_name.split('_task_')[0].capitalize()
                 project_class = self.projects_map.get(project_name_inferred)
 
                 # 立即将状态设置为执行中并更新UI
                 task_details = {
-                    'task_name': task_name,
+                    'task_name': unique_task_name, # 直接使用唯一名称作为任务名
                     'status': 'EXECUTING',
                     'details': '任务正在执行...',
                     'timestamp': datetime.now().isoformat(timespec='milliseconds')
                 }
                 current_browser_tasks = message_store.getByTopicAndKey('tasks', user_id) or {}
-                current_browser_tasks[task_name] = task_details
+                current_browser_tasks[unique_task_name] = task_details
                 message_store.put('tasks', user_id, current_browser_tasks)
 
                 try:
                     if not project_class:
                         task_details['status'] = "FAILURE"
-                        task_details['details'] = f"无法从任务名 '{task_name}' 推断出有效的项目类。"
+                        task_details['details'] = f"无法从任务名 '{original_task_name}' 推断出有效的项目类。"
                     else:
                         if project_name_inferred not in script_instances:
                             script_instances[project_name_inferred] = project_class(browser=browser, user_id=user_id)
 
                         script_instance = script_instances[project_name_inferred]
-                        task_method = getattr(script_instance, task_name)
+                        # 注意：调用方法时仍使用原始名称
+                        task_method = getattr(script_instance, original_task_name)
                         task_return_value = task_method()
 
                         if isinstance(task_return_value, str):
@@ -201,13 +209,13 @@ class Dispatcher:
                 except Exception as e:
                     task_details['status'] = "FAILURE"
                     task_details['details'] = f"{e.__class__.__name__}: {e}" if str(e) else e.__class__.__name__
-                    self.log.error(user_id, f"任务 {task_name} 发生异常: {traceback.format_exc()}")
+                    self.log.error(user_id, f"任务 {unique_task_name} 发生异常: {traceback.format_exc()}")
 
                 finally:
                     # 使用 finally 确保最终状态（成功或失败）一定会被更新
                     task_details['timestamp'] = datetime.now().isoformat(timespec='milliseconds')
                     current_browser_tasks = message_store.getByTopicAndKey('tasks', user_id) or {}
-                    current_browser_tasks[task_name] = task_details
+                    current_browser_tasks[unique_task_name] = task_details
                     message_store.put('tasks', user_id, current_browser_tasks)
 
         except Exception as e:

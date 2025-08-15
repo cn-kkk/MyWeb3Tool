@@ -668,19 +668,31 @@ class ProjectTab(QWidget):
         app_controller.interrupt_event.clear()
 
         # --- 组装初始任务数据并更新UI ---
+        from collections import Counter
         browser_ids = self.main_app.loaded_browser_ids
         initial_tasks = []
-        for task_item in sequence_data:
-            for browser_id in browser_ids:
+        task_counts = Counter()
+
+        # 这个循环的顺序必须和后端worker接收到的任务顺序保持一致
+        # 以确保生成的唯一ID是同步的。
+        for browser_id in browser_ids:
+            for task_item in sequence_data:
+                original_task_name = task_item['task_name']
                 for _ in range(task_item.get('repetition', 1)):
+                    # 为这个 (browser_id, task_name) 组合生成唯一的执行索引
+                    execution_index = task_counts[(browser_id, original_task_name)]
+                    unique_task_name = f"{original_task_name}_{execution_index}"
+                    
                     initial_tasks.append({
                         'browser_id': browser_id,
-                        'task_name': task_item['task_name']
+                        'task_name': unique_task_name # 直接使用唯一的、带后缀的任务名
                     })
+                    task_counts[(browser_id, original_task_name)] += 1
+        
         self.results_tab.populate_initial_tasks(initial_tasks)
 
         log_util.info("UI", f"任务序列已提交给后端执行，共 {len(sequence_data)} 个任务。")
-        QMessageBox.information(self, "任务开始", f"开始执行任务。")
+        QMessageBox.information(self, "任务开始", f"开始执行任务")
 
         concurrent_browsers = int(self.concurrency_combo.currentText())
         self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data, concurrent_browsers)

@@ -54,15 +54,16 @@ class OKXWalletUtil:
                 if not wallet_page:
                     time.sleep(1)
                     continue
-
+                log_util.info(user_id, f"开始处理OKX交易，上次okx页面id：{last_tab_id}")
                 # 如果页面没有变化，则继续等待
-                if wallet_page.tab_id == last_tab_id:
-                    time.sleep(1)
-                    continue
+                # if wallet_page.tab_id == last_tab_id:
+                #     time.sleep(1)
+                #     continue
 
                 # 优先处理“取消交易”弹窗
                 cancel_tx_button = wallet_page.ele('text:取消交易', timeout=10)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
+                    log_util.info(user_id, "处理取消交易弹窗")
                     cancel_tx_button.click()
                     last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
@@ -73,6 +74,7 @@ class OKXWalletUtil:
                     'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=10
                 )
                 if action_button and action_button.states.is_clickable:
+                    log_util.info(user_id, "处理确认或连接弹窗")
                     action_button.click()
                     last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
@@ -81,11 +83,13 @@ class OKXWalletUtil:
                 # 处理“取消”
                 cancel_button = wallet_page.ele('text:取消', timeout=10)
                 if cancel_button and cancel_button.states.is_clickable:
+                    log_util.info(user_id, "处理取消弹窗")
                     cancel_button.click()
                     last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
                     continue
-                
+
+                log_util.info(user_id, "okx钱包本次弹窗处理完成")
                 time.sleep(1)
             return True
             

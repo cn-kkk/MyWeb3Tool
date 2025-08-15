@@ -172,11 +172,12 @@ class PharosScript:
             swap_page.wait.load_start()
             AntiSybilDpUtil.human_short_wait()
 
-            # 步骤3: 检查是否钱包连接
-            connected_button = swap_page.ele('xpath://button[@data-testid="web3-status-connected"]', timeout=10) # type: ignore
-            if not (connected_button and connected_button.states.is_displayed):
-                # 如果未连接，则执行手动连接流程
-                connect_btn = swap_page.ele( # type: ignore
+            # 步骤3: 检查钱包是否已连接（新逻辑）
+            # 优先查找页面上是否已有 "0x" 开头的地址，这是已连接的明确标志
+            address_element = swap_page.ele('xpath://span[starts-with(text(), "0x")]', timeout=10)
+            if not (address_element and address_element.states.is_displayed):
+                # 如果未找到地址，则执行连接钱包的流程
+                connect_btn = swap_page.ele(
                     'xpath://button[@data-testid="navbar-connect-wallet"]',
                     timeout=15
                 )
@@ -188,8 +189,8 @@ class PharosScript:
                         log_util.error(self.user_id, message)
                         return message
                 else:
-                    # 两种按钮都找不到，则任务失败
-                    message = "既未找到已连接的钱包按钮，也未找到'Connect'按钮。"
+                    # 如果连 "Connect" 按钮也找不到，说明页面可能有问题
+                    message = "未找到钱包地址，也未找到'Connect'按钮，页面异常。"
                     log_util.error(self.user_id, message)
                     return message
 
@@ -332,7 +333,7 @@ class PharosScript:
             # 步骤2: 检查并连接钱包
             connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=10)
             if not (connected_button and connected_button.states.is_displayed):
-                connect_btn = swap_page.ele('xpath://button[contains(., "Connect a wallet")]', timeout=10)
+                connect_btn = swap_page.ele('xpath://button[contains(text(), "Connect a wallet")]', timeout=10)
                 connect_btn.click()
                 AntiSybilDpUtil.human_short_wait()
                 self.okx_util.click_OKX_in_selector(self.browser, swap_page, self.user_id)
