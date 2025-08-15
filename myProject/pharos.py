@@ -247,7 +247,7 @@ class PharosScript:
             swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
-            # 步骤10: 在弹窗中点击 "Confirm Swap"
+            # 步骤10: 在弹窗中点击 "Confirm Swap" 
             confirm_swap_btn = swap_page.ele('#confirm-swap-or-send', timeout=30)
             if not confirm_swap_btn:
                 message = "未能等到Confirm Swap按钮出现。"
@@ -306,8 +306,11 @@ class PharosScript:
             return True
 
         except Exception as e:
-            error_details = str(e).replace('\n', ' ')
-            message = f"Zenith Swap发生错误: {error_details}"
+            if "ElementNotFoundError" in e.__class__.__name__:
+                message = "测试网卡顿，未找到目标按钮"
+            else:
+                error_details = str(e).replace('\n', ' ')
+                message = f"Zenith Swap发生错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:
@@ -420,8 +423,11 @@ class PharosScript:
             return True
 
         except Exception as e:
-            error_details = str(e).replace('\n', ' ')
-            message = f"Faro Swap错误: {error_details}"
+            if "ElementNotFoundError" in e.__class__.__name__:
+                message = "测试网卡顿，未找到目标按钮"
+            else:
+                error_details = str(e).replace('\n', ' ')
+                message = f"Faro Swap错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
         finally:

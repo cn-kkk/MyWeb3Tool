@@ -44,20 +44,27 @@ class OKXWalletUtil:
             return any(self.EXTENSION_ID in tab.url for tab in browser.get_tabs())
 
         wallet_page = None
+        last_tab_id = None  # 用于跟踪上一个操作的tab_id
         AntiSybilDpUtil.human_short_wait()
 
         try:
             while wallet_tab_exists():
-                # 找到钱包页面
                 wallet_page = next((tab for tab in browser.get_tabs() if self.EXTENSION_ID in tab.url), None)
 
                 if not wallet_page:
+                    time.sleep(1)
+                    continue
+
+                # 如果页面没有变化，则继续等待
+                if wallet_page.tab_id == last_tab_id:
+                    time.sleep(1)
                     continue
 
                 # 优先处理“取消交易”弹窗
                 cancel_tx_button = wallet_page.ele('text:取消交易', timeout=10)
                 if cancel_tx_button and cancel_tx_button.states.is_clickable:
                     cancel_tx_button.click()
+                    last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
                     continue
 
@@ -67,6 +74,7 @@ class OKXWalletUtil:
                 )
                 if action_button and action_button.states.is_clickable:
                     action_button.click()
+                    last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
                     continue
 
@@ -74,6 +82,7 @@ class OKXWalletUtil:
                 cancel_button = wallet_page.ele('text:取消', timeout=10)
                 if cancel_button and cancel_button.states.is_clickable:
                     cancel_button.click()
+                    last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
                     continue
                 
@@ -184,7 +193,6 @@ class OKXWalletUtil:
 
         # --- 策略3: JS递归注入 ---
         if not clicked_element:
-            log_util.info(user_id, "尝试策略 #3: JS递归搜索 (最后底牌)...")
             js_find_and_click = '''
             function findWalletAndClick(rootElement, walletName) {
                 let foundNode = null;
@@ -212,7 +220,6 @@ class OKXWalletUtil:
                     if host.states.is_displayed:
                         try:
                             if page.run_js(js_find_and_click, host, "OKX Wallet"):
-                                log_util.info(user_id, "策略 #3 成功。")
                                 okx_button_found = True # JS已点击，只需标记成功
                                 break
                         except Exception:
