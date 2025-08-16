@@ -257,6 +257,20 @@ class PharosScript:
             confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
+            # 步骤10.1: 增加“Try again”的重试逻辑
+            for i in range(3):
+                try_again_btn = swap_page.ele('text:Try again', timeout=5)
+                if try_again_btn:
+                    try_again_btn.click()
+                    AntiSybilDpUtil.human_short_wait()
+                else:
+                    break
+            else:
+                # 如果循环3次都执行完了（即按钮一直存在），则任务失败
+                message = "测试网拥堵，反复try again"
+                log_util.error(self.user_id, message)
+                return message
+
             # 步骤11: 处理OKX钱包交易确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
                 message = "钱包交易确认失败。"
@@ -297,6 +311,20 @@ class PharosScript:
             new_confirm_swap_btn.click()
             AntiSybilDpUtil.human_long_wait()
 
+            # 第二次Swap后的“Try again”重试逻辑
+            for i in range(3):
+                try_again_btn = swap_page.ele('text:Try again', timeout=5)
+                if try_again_btn:
+                    try_again_btn.click()
+                    AntiSybilDpUtil.human_short_wait()
+                else:
+                    break
+            else:
+                # 如果循环3次都执行完了（即按钮一直存在），则任务失败
+                message = "测试网拥堵，反复try again"
+                log_util.error(self.user_id, message)
+                return message
+
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
                 message = "钱包交易确认失败2。"
                 log_util.error(self.user_id, message)
@@ -331,8 +359,9 @@ class PharosScript:
             AntiSybilDpUtil.human_huge_wait()
 
             # 步骤2: 检查并连接钱包
-            connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=10)
-            if not (connected_button and connected_button.states.is_displayed):
+            connected_button = swap_page.ele('xpath://button[contains(text(), "0x")]', timeout=5)
+            pending_button = swap_page.ele('button:has-text("pending")', timeout=5)
+            if not ((connected_button and connected_button.states.is_displayed) or (pending_button and pending_button.states.is_displayed)):
                 connect_btn = swap_page.ele('xpath://button[contains(text(), "Connect a wallet")]', timeout=10)
                 connect_btn.click()
                 AntiSybilDpUtil.human_short_wait()
