@@ -54,7 +54,7 @@ class AppConfig:
     API_HEADER_KEY = "X-API-KEY"
 
     # 数据格式配置
-    DATA_SEPARATOR = "----"
+    DATA_SEPARATOR = ":"
 
     # UI配置
     UI_FONTS = {

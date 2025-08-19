@@ -17,6 +17,7 @@ class PharosScript:
     ZENITH_SWAP_URL = "https://testnet.zenithfinance.xyz/swap"
     FARO_SWAP_URL = "https://faroswap.xyz/swap"
     NAME_URL = "https://test.pharosname.com/"
+    CFD_URL = "https://app.brokex.trade/"
 
     def __init__(self, browser, user_id: str, window_height: int = 800):
         """
@@ -610,6 +611,46 @@ class PharosScript:
         finally:
             if name_page and name_page.tab_id in self.browser.tab_ids:
                 name_page.close()
+
+    def pharos_task_cfd_trading(self):
+        """
+        不支持6开及以上！！！需要自己领水。
+        """
+        log_util.info(self.user_id, "开始执行cfd trading任务...")
+        cfd_trading_page = None
+        message = None
+        try:
+            # 步骤1: 获取或打开NAME_URL页面
+            cfd_trading_page = self.browser.new_tab(self.CFD_URL)
+            AntiSybilDpUtil.human_long_wait()
+            if cfd_trading_page.ele('text:contains=Brokex Protocol is currently not available on mobile'):
+                return False
+            # 步骤2: 滚动页面
+            w, h = cfd_trading_page.rect.viewport_size
+            cfd_trading_page.actions.move_to((int(w * 0.9), int(h * 0.2)))
+
+            AntiSybilDpUtil.human_brief_wait()
+            cfd_trading_page.scroll.to_bottom()
+            AntiSybilDpUtil.human_brief_wait()
+            # 步骤3: 点击Open Position按钮
+            open_position_btn = cfd_trading_page.ele('#btnOpenPosition', timeout=10)
+            open_position_btn.click()
+            AntiSybilDpUtil.human_short_wait()
+            # 步骤4: okx钱包确认
+            if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
+                message = "cfd trading失败：钱包交易确认失败。"
+                log_util.error(self.user_id, message)
+                return message
+            AntiSybilDpUtil.human_long_wait()
+            return True
+        except Exception as e:
+            error_details = str(e).replace('\n', ' ')
+            message = f"cfd trading发生错误: {error_details}"
+            log_util.error(self.user_id, message, exc_info=True)
+            return message
+        finally:
+            if cfd_trading_page and cfd_trading_page.tab_id in self.browser.tab_ids:
+                cfd_trading_page.close()
 
 
 if __name__ == "__main__":
