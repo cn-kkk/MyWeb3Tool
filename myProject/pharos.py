@@ -58,14 +58,22 @@ class PharosScript:
             AntiSybilDpUtil.human_brief_wait()
             AntiSybilDpUtil.simulate_mouse_move(self.page)
             
-            # 步骤4: 连接钱包 (使用DrissionPage原生方法，自动处理Shadow DOM)
+            # 步骤4: 连接钱包
             connect_btn = self.page.ele('text:Connect Wallet', timeout=10)
             if connect_btn:
                 connect_btn.click()
                 AntiSybilDpUtil.human_short_wait()
                 
-                # 调用重构后的方法选择OKX钱包
-                self.okx_util.click_OKX_in_selector(self.browser, self.page, self.user_id)
+                try:
+                    self.okx_util.click_OKX_in_selector(self.browser, self.page, self.user_id)
+                except Exception as e:
+                    if "未找到任何OKX钱包页面" in str(e):
+                        AntiSybilDpUtil.human_short_wait()
+                        address_element = self.page.ele('xpath://span[starts-with(text(), "0x")]', timeout=5)
+                        if not address_element:
+                            raise e
+                    else:
+                        raise e
                 AntiSybilDpUtil.human_short_wait()
 
                 # 处理可选的"Continue"按钮
@@ -582,25 +590,78 @@ class PharosScript:
             for i in range(5):  # 最多尝试5次
                 # 生成并输入新名称
                 user_name = WalletUtil.get_a_random_word() + str(weekday) + ".phrs"
-                log_util.info(self.user_id, f"第 {i + 1} 次尝试，使用名称: {user_name}")
                 name_input.clear()
                 AntiSybilDpUtil.simulate_typing(name_page, user_name, self.user_id)
                 AntiSybilDpUtil.human_long_wait()
 
                 # 等待异步验证结果
-                unavailable_notice = name_page.ele('text:不可用', timeout=10)
+                unavailable_notice = name_page.ele('xpath://*[text()="不可用" or text()="Not Supported"] or text()="Unavailable"]', timeout=10)
                 if unavailable_notice:
-                    log_util.warn(self.user_id, f"名称 '{user_name}' 不可用，继续尝试...")
                     continue  # 名称不可用，直接开始下一次循环
 
-                available_button = name_page.ele('text:可注册', timeout=10)
+                available_button = name_page.ele('xpath://*[text()="可注册" or text()="Available"]', timeout=10)
                 if available_button:
-                    log_util.info(self.user_id, f"名称 '{user_name}' 可用，点击注册。")
                     available_button.click()
                     AntiSybilDpUtil.human_long_wait()
                     break
 
-            log_util.info(self.user_id, "—————— 购买Web3用户名任务等待后续开发 ——————")
+            # 步骤4: 修改时间
+            name_page.scroll.down(150)
+            AntiSybilDpUtil.human_brief_wait()
+            w, h = name_page.rect.viewport_size
+            name_page.actions.move_to((int(w * 0.4), int(h * 0.3)))
+            AntiSybilDpUtil.human_brief_wait()
+            date_choose_btn = name_page.ele("xpath://button[text()='Pick by date']", timeout=20)
+            date_choose_btn.click()
+            AntiSybilDpUtil.human_short_wait()
+            calendar_input = name_page.ele('#calendar', timeout=10)
+            calendar_input.click()
+            AntiSybilDpUtil.human_short_wait()
+            # 日历控件只能循环按方向键
+            actions = name_page.actions
+            for _ in range(55):
+                actions.key_down('up')
+                actions.key_up('up')
+                time.sleep(0.08)
+            AntiSybilDpUtil.human_short_wait()
+            name_page.actions.key_down('enter').key_up('enter')
+            AntiSybilDpUtil.human_short_wait()
+
+            gas_text = name_page.ele('@data-testid=invoice-total').child('tag:div').text
+            if not gas_text.startswith('0.0'):
+                message = "gas费异常，大于0.1"
+                return message
+
+            # 步骤5: 准备购买域名
+            name_page.scroll.to_bottom()
+            AntiSybilDpUtil.human_short_wait()
+            next_btn = name_page.ele('@data-testid=next-button', timeout=10)
+            next_btn.click()
+            AntiSybilDpUtil.human_short_wait()
+            begin_btn = name_page.ele('xpath://button[contains(.,"Begin")]', timeout=10)
+            begin_btn.click()
+            AntiSybilDpUtil.human_short_wait()
+
+            # 步骤6: okx交易
+            open_wallet_btn = name_page.ele('@data-testid=transaction-modal-confirm-button', timeout=20)
+            open_wallet_btn.click()
+            AntiSybilDpUtil.human_short_wait()
+            confirmation_result =  self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            if isinstance(confirmation_result, str):
+                return confirmation_result
+
+            # 步骤7: 交易失败
+            recomplete_btn = name_page.ele('@data-testid=finish-button', timeout=65)
+            if recomplete_btn and recomplete_btn.states.is_clickable:
+                recomplete_btn.click()
+                AntiSybilDpUtil.human_short_wait()
+                open_wallet_btn2 = name_page.ele('@data-testid=transaction-modal-confirm-button', timeout=20)
+                open_wallet_btn2.click()
+                AntiSybilDpUtil.human_short_wait()
+                confirmation_result2 = self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+                if isinstance(confirmation_result2, str):
+                    return confirmation_result2
+            log_util.info(self.user_id, "—————— 购买Web3用户名任务成功 ——————")
             return True
 
         except Exception as e:
