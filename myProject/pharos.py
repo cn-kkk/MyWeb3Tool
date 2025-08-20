@@ -588,12 +588,12 @@ class PharosScript:
                 AntiSybilDpUtil.human_long_wait()
 
                 # 等待异步验证结果
-                unavailable_notice = name_page.s_ele('text:不可用', timeout=10)
+                unavailable_notice = name_page.ele('text:不可用', timeout=10)
                 if unavailable_notice:
                     log_util.warn(self.user_id, f"名称 '{user_name}' 不可用，继续尝试...")
                     continue  # 名称不可用，直接开始下一次循环
 
-                available_button = name_page.s_ele('text:可注册', timeout=10)
+                available_button = name_page.ele('text:可注册', timeout=10)
                 if available_button:
                     log_util.info(self.user_id, f"名称 '{user_name}' 可用，点击注册。")
                     available_button.click()
