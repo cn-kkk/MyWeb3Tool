@@ -148,7 +148,7 @@ class OKXWalletUtil:
                     AntiSybilDpUtil.human_short_wait()
 
                 cancel_button = wallet_tab.ele('text:取消', timeout=10)
-                if cancel_button and cancel_tx_button.states.is_clickable:
+                if cancel_button and cancel_button.states.is_clickable:
                     AntiSybilDpUtil.human_short_wait()
                     cancel_button.click()
                     AntiSybilDpUtil.human_short_wait()
