@@ -6,7 +6,8 @@ from PyQt5.QtWidgets import (
     QTextEdit, QPushButton, QLabel, QPlainTextEdit, 
     QStackedWidget, QMessageBox, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
-    QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem
+    QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem,
+    QRadioButton, QCheckBox, QGridLayout, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject, QTimer
 from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon, QMovie
@@ -432,57 +433,86 @@ class ProjectTab(QWidget):
         main_layout = QHBoxLayout(self)
         splitter = QSplitter(Qt.Horizontal)
 
-        # --- Left Panel: Available Projects and Tasks ---
+        # --- Left Panel: Main container for all controls and content ---
         left_panel = QWidget()
-        left_layout = QHBoxLayout(left_panel)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(0)
+        grid_layout = QGridLayout(left_panel)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+        grid_layout.setSpacing(0)
 
-        # --- Combined Sidebar Panel ---
-        sidebar_container = QWidget()
-        sidebar_container.setFixedWidth(260)
-        sidebar_container_layout = QVBoxLayout(sidebar_container)
-        sidebar_container_layout.setContentsMargins(15, 15, 15, 15)
-        sidebar_container_layout.setSpacing(15)
-        sidebar_container_layout.setAlignment(Qt.AlignTop)
-
-        # Concurrency settings
-        concurrency_layout = QHBoxLayout()
+        # --- Top-Left: Concurrency Settings ---
+        concurrency_container = QWidget()
+        concurrency_layout = QHBoxLayout(concurrency_container)
+        concurrency_layout.setContentsMargins(15, 10, 15, 10)
         concurrency_label = QLabel("<b>最多同步浏览器:</b>")
         concurrency_label.setStyleSheet("font-size: 15px;")
-        concurrency_layout.addWidget(concurrency_label)
         self.concurrency_combo = QComboBox()
         self.concurrency_combo.addItems(["2", "4", "6", "8"])
         self.concurrency_combo.setCurrentText("4")
         self.concurrency_combo.setFixedWidth(65)
+        self.concurrency_combo.setEditable(True)
+        self.concurrency_combo.lineEdit().setAlignment(Qt.AlignCenter)
+        self.concurrency_combo.lineEdit().setReadOnly(True)
+        concurrency_layout.addWidget(concurrency_label)
         concurrency_layout.addWidget(self.concurrency_combo)
         concurrency_layout.addWidget(QLabel("个"))
-        concurrency_layout.addStretch()
-        sidebar_container_layout.addLayout(concurrency_layout)
+        grid_layout.addWidget(concurrency_container, 0, 0)
 
-        # Horizontal Separator
+        # --- Top-Right: View Options ---
+        options_container = QWidget()
+        options_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        options_layout = QHBoxLayout(options_container)
+        options_layout.setContentsMargins(15, 10, 15, 10)
+        self.browser_radio = QRadioButton("浏览器勾选")
+        self.task_radio = QRadioButton("任务选项")
+        self.browser_radio.setChecked(True)
+        radio_button_style = '''
+            QRadioButton {
+                border: 1px solid #d0d0d0; padding: 10px 20px; border-radius: 15px;
+                background-color: #f8f9fa; font-weight: bold; font-size: 16px;
+            }
+            QRadioButton::indicator { width: 0; height: 0; }
+            QRadioButton:checked { background-color: #e6f7ff; color: #0078d4; border: 2px solid #0078d4; }
+            QRadioButton:hover { background-color: #e9ecef; }
+        '''
+        self.browser_radio.setStyleSheet(radio_button_style)
+        self.task_radio.setStyleSheet(radio_button_style)
+        options_layout.addWidget(self.browser_radio)
+        options_layout.addWidget(self.task_radio)
+        options_layout.addStretch() # Add stretch to the end to align left
+        grid_layout.addWidget(options_container, 0, 2)
+
+        # --- Horizontal Separator ---
         h_separator = QFrame()
         h_separator.setFrameShape(QFrame.HLine)
         h_separator.setStyleSheet("border: none; border-top: 1px solid #e8e8e8;")
-        sidebar_container_layout.addWidget(h_separator)
-
-        # Project list
-        self.sidebar = StyledSidebar([], 200)
-        self.sidebar.currentRowChanged.connect(self.on_sidebar_changed)
-        sidebar_container_layout.addWidget(self.sidebar)
+        grid_layout.addWidget(h_separator, 1, 0, 1, 3) # Spans all 3 columns
 
         # --- Vertical Separator ---
         v_separator = QFrame()
         v_separator.setFrameShape(QFrame.VLine)
         v_separator.setStyleSheet("border: none; border-left: 1px solid #e8e8e8;")
+        grid_layout.addWidget(v_separator, 0, 1, 3, 1) # Spans all 3 rows
 
-        # --- Content Stack ---
-        self.content_stack = QStackedWidget()
+        # --- Bottom-Left: Sidebar ---
+        self.sidebar = StyledSidebar([], 200)
+        self.sidebar.currentRowChanged.connect(self.on_sidebar_changed)
+        grid_layout.addWidget(self.sidebar, 2, 0)
 
-        # Final assembly
-        left_layout.addWidget(sidebar_container)
-        left_layout.addWidget(v_separator)
-        left_layout.addWidget(self.content_stack)
+        # --- Bottom-Right: Main Content Stack ---
+        self.main_content_stack = QStackedWidget()
+        self.browser_selection_widget = self.create_browser_selection_widget()
+        self.task_options_stack = QStackedWidget()
+        self.main_content_stack.addWidget(self.browser_selection_widget)
+        self.main_content_stack.addWidget(self.task_options_stack)
+        self.browser_radio.toggled.connect(self.on_view_option_changed)
+        grid_layout.addWidget(self.main_content_stack, 2, 2)
+
+        # Configure grid stretching
+        grid_layout.setColumnStretch(0, 0) # Sidebar column
+        grid_layout.setColumnStretch(2, 1) # Content column
+        grid_layout.setRowStretch(0, 0)
+        grid_layout.setRowStretch(2, 1)
+        grid_layout.setColumnMinimumWidth(0, 260)
 
         # --- Right Panel: Task Sequence ---
         right_panel = QWidget()
@@ -502,7 +532,7 @@ class ProjectTab(QWidget):
         self.stop_btn = QPushButton("停止执行")
         self.stop_btn.setStyleSheet("background-color: #d35400; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
         self.stop_btn.clicked.connect(self.on_stop_clicked)
-        self.stop_btn.setEnabled(False) # Initially disabled
+        self.stop_btn.setEnabled(False)
 
         self.run_seq_btn = QPushButton("执行序列")
         self.run_seq_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
@@ -526,20 +556,100 @@ class ProjectTab(QWidget):
         splitter.setSizes([750, 250])
         main_layout.addWidget(splitter)
 
+    def on_view_option_changed(self):
+        if self.browser_radio.isChecked():
+            self.main_content_stack.setCurrentIndex(0)
+            # Refresh browser list in case it changed in config
+            self.update_browser_selection_widget()
+        else:
+            self.main_content_stack.setCurrentIndex(1)
+
+    def create_browser_selection_widget(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(25, 20, 25, 20)
+        layout.setSpacing(15)
+
+        checkbox_style = '''
+            QCheckBox { spacing: 10px; }
+            QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #bdc3c7; border-radius: 4px; }
+            QCheckBox::indicator:unchecked:hover { border-color: #3498db; }
+            QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); }
+        '''
+
+        self.select_all_checkbox = QCheckBox("全选")
+        self.select_all_checkbox.setFont(QFont('Microsoft YaHei', 11, QFont.Weight.Bold))
+        self.select_all_checkbox.setStyleSheet(checkbox_style)
+        layout.addWidget(self.select_all_checkbox)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll_content = QWidget()
+        self.browser_checkboxes_layout = QVBoxLayout(scroll_content)
+        self.browser_checkboxes_layout.setContentsMargins(0, 5, 0, 0)
+        self.browser_checkboxes_layout.setSpacing(12)
+        
+        scroll_area.setWidget(scroll_content)
+        layout.addWidget(scroll_area)
+        
+        self.browser_checkboxes = []
+        self.select_all_checkbox.stateChanged.connect(self.toggle_all_browsers)
+        
+        return widget
+
+    def update_browser_selection_widget(self):
+        # Clear ALL items from the layout, including stretches
+        while self.browser_checkboxes_layout.count():
+            item = self.browser_checkboxes_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        
+        self.browser_checkboxes.clear()
+
+        checkbox_style = '''
+            QCheckBox { spacing: 10px; }
+            QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #bdc3c7; border-radius: 4px; }
+            QCheckBox::indicator:unchecked:hover { border-color: #3498db; }
+            QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); }
+        '''
+
+        # Repopulate with current browser IDs
+        for uid in self.main_app.loaded_browser_ids:
+            checkbox = QCheckBox(uid)
+            checkbox.setFont(QFont('Consolas', 11))
+            checkbox.setStyleSheet(checkbox_style)
+            self.browser_checkboxes_layout.addWidget(checkbox)
+            self.browser_checkboxes.append(checkbox)
+        
+        # Add the stretch back at the end
+        self.browser_checkboxes_layout.addStretch()
+
+    def toggle_all_browsers(self, state):
+        for checkbox in self.browser_checkboxes:
+            checkbox.setChecked(state == Qt.Checked)
+
+    def get_selected_browser_ids(self):
+        return [cb.text() for cb in self.browser_checkboxes if cb.isChecked()]
+
     def populate_projects(self, projects):
         self.project_classes = projects
         self.sidebar.clear()
-        while self.content_stack.count() > 0:
-            widget = self.content_stack.widget(0)
-            self.content_stack.removeWidget(widget)
+        while self.task_options_stack.count() > 0:
+            widget = self.task_options_stack.widget(0)
+            self.task_options_stack.removeWidget(widget)
             widget.deleteLater()
 
         for proj in self.project_classes:
             self.sidebar.addItem(proj['project_name'])
-            self.content_stack.addWidget(self.create_available_tasks_widget(proj))
+            self.task_options_stack.addWidget(self.create_available_tasks_widget(proj))
 
         if self.project_classes:
             self.sidebar.setCurrentRow(0)
+        
+        # Populate browser list initially
+        self.update_browser_selection_widget()
 
     def create_available_tasks_widget(self, proj):
         widget = QWidget()
@@ -645,11 +755,11 @@ class ProjectTab(QWidget):
         self.sequence_list.takeItem(row)
 
     def on_sidebar_changed(self, index):
-        self.content_stack.setCurrentIndex(index)
+        self.task_options_stack.setCurrentIndex(index)
 
     def on_run_sequence_clicked(self):
         if self.is_running:
-            return # Should not happen as button is disabled, but as a safeguard
+            return
 
         sequence_data = []
         for i in range(self.sequence_list.count()):
@@ -662,14 +772,16 @@ class ProjectTab(QWidget):
             QMessageBox.information(self, "序列为空", "请先将任务添加到执行序列。")
             return
 
-        # --- Lock and run ---
+        browser_ids = self.get_selected_browser_ids()
+        if not browser_ids:
+            QMessageBox.warning(self, "未选择浏览器", "请在'浏览器勾选'中至少选择一个浏览器。")
+            return
+
         self.is_running = True
         self.update_button_states()
         app_controller.interrupt_event.clear()
 
-        # --- 组装初始任务数据并更新UI ---
         from collections import Counter
-        browser_ids = self.main_app.loaded_browser_ids
         initial_tasks = []
         task_counts = Counter()
 
@@ -679,13 +791,12 @@ class ProjectTab(QWidget):
             for task_item in sequence_data:
                 original_task_name = task_item['task_name']
                 for _ in range(task_item.get('repetition', 1)):
-                    # 为这个 (browser_id, task_name) 组合生成唯一的执行索引
                     execution_index = task_counts[(browser_id, original_task_name)]
                     unique_task_name = f"{original_task_name}_{execution_index}"
                     
                     initial_tasks.append({
                         'browser_id': browser_id,
-                        'task_name': unique_task_name # 直接使用唯一的、带后缀的任务名
+                        'task_name': unique_task_name
                     })
                     task_counts[(browser_id, original_task_name)] += 1
         
@@ -697,13 +808,13 @@ class ProjectTab(QWidget):
         concurrent_browsers = int(self.concurrency_combo.currentText())
         self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data, concurrent_browsers)
         self.dispatch_thread.start()
-        self.progress_timer.start(2000) # 每2秒查询一次进度
+        self.progress_timer.start(2000)
 
     def on_sequence_finished(self):
         self.progress_timer.stop()
         self.is_running = False
         self.update_button_states()
-        self.sequence_list.clear() # Automatically clear the sequence
+        self.sequence_list.clear()
         log_util.info("UI", "任务序列已全部执行完毕，并已清空显示列表。")
         QMessageBox.information(self, "任务完成", "任务序列已全部执行完毕。")
 
