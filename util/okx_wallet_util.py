@@ -53,15 +53,16 @@ class OKXWalletUtil:
                     continue
             return False
 
+        message = None
+        wallet_page = None
+        last_tab_id = None  # 用于跟踪上一个操作的tab_id,但是解决不了页面断开的bug
+
         # 在进入循环前，必须确保钱包页面存在，否则调用此函数本身就是个逻辑错误
         AntiSybilDpUtil.human_short_wait()
         if not wallet_tab_exists():
             message = "未找到任何OKX钱包页面。可能已断开或未弹出。"
             log_util.error(user_id, message)
             raise Exception(message)
-
-        wallet_page = None
-        last_tab_id = None  # 用于跟踪上一个操作的tab_id,但是解决不了页面断开的bug
 
         try:
             while wallet_tab_exists():
@@ -99,10 +100,15 @@ class OKXWalletUtil:
                     cancel_button.click()
                     last_tab_id = wallet_page.tab_id
                     AntiSybilDpUtil.human_long_wait()
+                    message = "okx全部只能点击取消按钮。"
+                    log_util.error(user_id, message)
                     continue
 
                 time.sleep(1)
-            return True
+            if message:
+                return message
+            else:
+                return True
             
         except Exception as e:
             if wallet_page and wallet_page.tab_id in browser.tab_ids:

@@ -149,11 +149,12 @@ class Dispatcher:
         except Exception as e:
             self.log.error(f"调度器", f"排列窗口时发生严重错误: {e}", exc_info=True)
 
-    def _worker(self, browser, assignment, user_id, worker_id):
+    def _worker(self, browser, assignment, user_id):
         """包含原BrowserWorker核心逻辑的工作函数，由线程池执行。"""
         try:
             try:
-                # worker_id 现在直接传入用于窗口排列
+                thread_name = threading.current_thread().name
+                worker_id = int(thread_name.split('_')[-1])
                 self._arrange_window(browser, worker_id)
             except Exception as e:
                 self.log.error(user_id, f"排列窗口失败: {e}", exc_info=True)
@@ -255,7 +256,6 @@ class Dispatcher:
             return
 
         futures = []
-        worker_id_counter = 0
         for job in self.job_list:
             if self.interrupt_event.is_set():
                 self.log.info("调度器", "在分发任务前检测到中断信号，主调度循环终止。")
@@ -273,9 +273,8 @@ class Dispatcher:
                     self.concurrency_semaphore.release()
                     continue
 
-                future = self.executor.submit(self._worker, browser, assignment, user_id, worker_id_counter)
+                future = self.executor.submit(self._worker, browser, assignment, user_id)
                 futures.append(future)
-                worker_id_counter += 1
 
             except Exception as e:
                 self.log.error(f"调度器", f"在主调度循环中处理 {user_id} 时发生严重错误: {e}", exc_info=True)

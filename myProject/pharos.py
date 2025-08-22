@@ -254,7 +254,7 @@ class PharosScript:
                 message = "未能等到Swap按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            swap_btn.click()
+            swap_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10: 在弹窗中点击 "Confirm Swap" 
@@ -263,7 +263,7 @@ class PharosScript:
                 message = "未能等到Confirm Swap按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            confirm_swap_btn.click()
+            confirm_swap_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤10.1: 增加“Try again”的重试逻辑
@@ -281,10 +281,9 @@ class PharosScript:
                 return message
 
             # 步骤11: 处理OKX钱包交易确认
-            if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                message = "钱包交易确认失败。"
-                log_util.error(self.user_id, message)
-                return message
+            confirmation_result =  self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            if isinstance(confirmation_result, str):
+                return confirmation_result
             AntiSybilDpUtil.human_huge_wait()
             AntiSybilDpUtil.simulate_mouse_move(swap_page)
 
@@ -313,11 +312,11 @@ class PharosScript:
             AntiSybilDpUtil.human_long_wait()
 
             swap_btn2 = swap_page.ele('#swap-button', timeout=30)
-            swap_btn2.click()
+            swap_btn2.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_huge_wait()
 
             new_confirm_swap_btn = swap_page.ele('#confirm-swap-or-send', timeout=30)
-            new_confirm_swap_btn.click()
+            new_confirm_swap_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_long_wait()
 
             # 第二次Swap后的“Try again”重试逻辑
@@ -334,10 +333,9 @@ class PharosScript:
                 log_util.error(self.user_id, message)
                 return message
 
-            if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
-                message = "钱包交易确认失败2。"
-                log_util.error(self.user_id, message)
-                return message
+            confirmation_result =  self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+            if isinstance(confirmation_result, str):
+                return confirmation_result
             AntiSybilDpUtil.human_huge_wait()
 
             log_util.info(self.user_id, "—————— Swap任务已成功完成 ——————")
@@ -414,7 +412,7 @@ class PharosScript:
                 message = "未能等到faro的'Review Swap'按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            review_button.click()
+            review_button.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤7: 点击 Confirm Swap 按钮 (在15秒内持续查找)
@@ -423,7 +421,7 @@ class PharosScript:
                 message = "未能等到faro的'Confirm Swap'按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            confirm_button.click()
+            confirm_button.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤8: 处理钱包交易确认
@@ -449,11 +447,11 @@ class PharosScript:
 
             # 步骤11: 再次swap
             review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=30)
-            review_button.click()
+            review_button.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_short_wait()
 
             confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=30)
-            confirm_button.click()
+            confirm_button.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_long_wait()
 
             self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
@@ -571,10 +569,10 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤2: 确保钱包已连接
-            profile_element = name_page.s_ele('xpath://div[@data-testid="header-profile"]', timeout=10)
+            profile_element = name_page.ele('xpath://div[@data-testid="header-profile"]', timeout=10)
             if not profile_element:
                 log_util.info(self.user_id, "钱包未连接，开始连接流程...")
-                connect_btn = name_page.ele('text:连接', timeout=10)
+                connect_btn = name_page.ele('xpath://*[text()="连接" or text()="Connect"]', timeout=10)
                 if connect_btn:
                     connect_btn.click()
                     AntiSybilDpUtil.human_short_wait()
@@ -636,15 +634,15 @@ class PharosScript:
             name_page.scroll.to_bottom()
             AntiSybilDpUtil.human_short_wait()
             next_btn = name_page.ele('@data-testid=next-button', timeout=10)
-            next_btn.click()
+            next_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_short_wait()
             begin_btn = name_page.ele('xpath://button[contains(.,"Begin")]', timeout=10)
-            begin_btn.click()
+            begin_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤6: okx交易
             open_wallet_btn = name_page.ele('@data-testid=transaction-modal-confirm-button', timeout=20)
-            open_wallet_btn.click()
+            open_wallet_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_short_wait()
             confirmation_result =  self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
             if isinstance(confirmation_result, str):
@@ -653,10 +651,10 @@ class PharosScript:
             # 步骤7: 交易失败
             recomplete_btn = name_page.ele('@data-testid=finish-button', timeout=65)
             if recomplete_btn and recomplete_btn.states.is_clickable:
-                recomplete_btn.click()
+                recomplete_btn.wait.clickable(timeout=20).click()
                 AntiSybilDpUtil.human_short_wait()
                 open_wallet_btn2 = name_page.ele('@data-testid=transaction-modal-confirm-button', timeout=20)
-                open_wallet_btn2.click()
+                open_wallet_btn2.wait.clickable(timeout=20).click()
                 AntiSybilDpUtil.human_short_wait()
                 confirmation_result2 = self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
                 if isinstance(confirmation_result2, str):
@@ -702,7 +700,7 @@ class PharosScript:
                         if pair_buttons_div:
                             first_pair_link = pair_buttons_div.ele('tag:a', timeout=5)
                             if first_pair_link and first_pair_link.states.is_clickable:
-                                first_pair_link.click()
+                                first_pair_link.wait.clickable(timeout=20).click()
                                 AntiSybilDpUtil.human_short_wait()
                                 click_success = True
                                 break
@@ -712,11 +710,11 @@ class PharosScript:
                 if not click_success:
                     return "尝试3次后仍无法点击交易对，任务失败。"
                 
-                execute_order_btn.click()
+                execute_order_btn.wait.clickable(timeout=20).click()
                 AntiSybilDpUtil.human_short_wait()
             # 点击 open position
             final_open_position_btn = cfd_trading_page.ele('xpath://*[@id="btnOpenPosition" and contains(text(), "Open Position")]', timeout=10)
-            final_open_position_btn.click()
+            final_open_position_btn.wait.clickable(timeout=20).click()
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤4: okx钱包确认
@@ -731,9 +729,9 @@ class PharosScript:
             message = f"cfd trading发生错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
-        # finally:
-        #     if cfd_trading_page and cfd_trading_page.tab_id in self.browser.tab_ids:
-        #         cfd_trading_page.close()
+        finally:
+            if cfd_trading_page and cfd_trading_page.tab_id in self.browser.tab_ids:
+                cfd_trading_page.close()
 
 
 if __name__ == "__main__":
