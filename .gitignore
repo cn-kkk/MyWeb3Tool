@@ -30,3 +30,5 @@ resource/*.txt
 resource/
 
 dist/
+
+build/

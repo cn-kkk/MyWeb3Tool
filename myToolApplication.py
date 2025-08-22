@@ -470,7 +470,6 @@ class ProjectTab(QWidget):
                 border: 1px solid #d0d0d0; padding: 10px 20px; border-radius: 15px;
                 background-color: #f8f9fa; font-weight: bold; font-size: 16px;
             }
-            QRadioButton::indicator { width: 0; height: 0; }
             QRadioButton:checked { background-color: #e6f7ff; color: #0078d4; border: 2px solid #0078d4; }
             QRadioButton:hover { background-color: #e9ecef; }
         '''
