@@ -687,12 +687,10 @@ class PharosScript:
             if cfd_trading_page.ele('text:contains=Brokex Protocol is currently not available on mobile'):
                 return False
             # 步骤2: 滚动页面
-            w, h = cfd_trading_page.rect.viewport_size
-            cfd_trading_page.actions.move_to((int(w * 0.9), int(h * 0.2)))
-
-            AntiSybilDpUtil.human_brief_wait()
-            cfd_trading_page.scroll.to_bottom()
-            AntiSybilDpUtil.human_brief_wait()
+            scroll_container = cfd_trading_page.ele('.div-block-487', timeout=5)
+            if scroll_container:
+                scroll_container.scroll.to_bottom()
+            AntiSybilDpUtil.human_short_wait()
             # 步骤3: 点击Open Position按钮
             execute_order_btn = cfd_trading_page.ele('xpath://*[@id="btnOpenPosition" and contains(text(), "Execute the order")]', timeout=10)
             if execute_order_btn and execute_order_btn.states.is_clickable:
@@ -700,15 +698,16 @@ class PharosScript:
                 # 点击交易对
                 for _ in range(3):
                     try:
-                        pair_buttons_div = cfd_trading_page.ele('#pair-buttons', timeout=3)
+                        pair_buttons_div = cfd_trading_page.ele('#pair-buttons', timeout=5)
                         if pair_buttons_div:
-                            first_pair_link = pair_buttons_div.ele('tag:a', timeout=3)
+                            first_pair_link = pair_buttons_div.ele('tag:a', timeout=5)
                             if first_pair_link and first_pair_link.states.is_clickable:
                                 first_pair_link.click()
                                 AntiSybilDpUtil.human_short_wait()
                                 click_success = True
                                 break
                     except:
+                        AntiSybilDpUtil.human_short_wait()
                         pass
                 if not click_success:
                     return "尝试3次后仍无法点击交易对，任务失败。"

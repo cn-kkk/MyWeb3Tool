@@ -761,6 +761,45 @@ class ProjectTab(QWidget):
             QMessageBox.information(self, "序列为空", "请先将任务添加到执行序列。")
             return
 
+        # --- 新增逻辑：根据任务序列准备初始的任务列表 ---
+        initial_tasks_for_ui = []
+        sequence_browsers_and_tasks = {} # 采纳用户建议的变量名
+        # 阶段1: 为每个浏览器合并任务
+        for project_group in self.sequence_model:
+            project_tasks = project_group.get('tasks', [])
+            browser_ids_for_project = project_group.get('browser_ids', [])
+
+            expanded_tasks = []
+            for task in project_tasks:
+                for _ in range(task.get('repetition', 1)):
+                    expanded_tasks.append({'task_name': task['task_name']})
+            
+            if not expanded_tasks:
+                continue
+
+            for browser_id in browser_ids_for_project:
+                if browser_id not in sequence_browsers_and_tasks:
+                    sequence_browsers_and_tasks[browser_id] = []
+                sequence_browsers_and_tasks[browser_id].extend(expanded_tasks)
+
+        # 阶段2: 展开为UI所需的扁平列表
+        for browser_id, tasks in sequence_browsers_and_tasks.items():
+            task_execution_counts = {} 
+            for task in tasks:
+                original_task_name = task['task_name']
+                execution_index = task_execution_counts.get(original_task_name, 0)
+                unique_task_name = f"{original_task_name}_{execution_index}"
+                task_execution_counts[original_task_name] = execution_index + 1
+                
+                initial_tasks_for_ui.append({
+                    'browser_id': browser_id,
+                    'task_name': unique_task_name
+                })
+
+        # 将这个初始列表传递给结果标签页进行UI填充
+        self.results_tab.populate_initial_tasks(initial_tasks_for_ui)
+        # --- 新增逻辑结束 ---
+
         sequence_data_for_backend = self.sequence_model
 
         self.is_running = True
