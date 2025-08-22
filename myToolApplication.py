@@ -393,6 +393,8 @@ class ProjectTab(QWidget):
         self.progress_timer = QTimer(self)
         self.progress_timer.timeout.connect(self.query_progress)
         self.sequence_model = [] # NEW: Central data model for the sequence
+        # --- 新增：用于独立存储每个项目浏览器选择的状态字典 ---
+        self.browser_selections_by_project = {}
         self.init_ui()
 
     def init_ui(self):
@@ -545,7 +547,7 @@ class ProjectTab(QWidget):
     def on_view_option_changed(self):
         if self.browser_radio.isChecked():
             self.main_content_stack.setCurrentIndex(0)
-            self.update_browser_selection_widget()
+            self.update_browser_selection_widget() # Now this will correctly render the state
         else:
             self.main_content_stack.setCurrentIndex(1)
 
@@ -565,6 +567,8 @@ class ProjectTab(QWidget):
         self.select_all_checkbox = QCheckBox("全选")
         self.select_all_checkbox.setFont(QFont('Microsoft YaHei', 11, QFont.Weight.Bold))
         self.select_all_checkbox.setStyleSheet(checkbox_style)
+        # The actual stateChanged connection is now managed in update_browser_selection_widget
+        self.select_all_checkbox.clicked.connect(self.toggle_all_browsers)
         layout.addWidget(self.select_all_checkbox)
         
         scroll_area = QScrollArea()
@@ -579,45 +583,104 @@ class ProjectTab(QWidget):
         layout.addWidget(scroll_area)
         
         self.browser_checkboxes = []
-        self.select_all_checkbox.stateChanged.connect(self.toggle_all_browsers)
-        
         return widget
 
     def update_browser_selection_widget(self):
-        while self.browser_checkboxes_layout.count():
-            item = self.browser_checkboxes_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-        
-        self.browser_checkboxes.clear()
+        # Block signals to prevent mass updates while we set states
+        self.select_all_checkbox.blockSignals(True)
+        for cb in self.browser_checkboxes:
+            cb.blockSignals(True)
 
-        checkbox_style = '''
-            QCheckBox { spacing: 10px; }
-            QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #bdc3c7; border-radius: 4px; }
-            QCheckBox::indicator:unchecked:hover { border-color: #3498db; }
-            QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); }
-        '''
+        current_project_item = self.sidebar.currentItem()
+        if not current_project_item:
+            return
+        current_project_name = current_project_item.text()
+        selected_browsers = self.browser_selections_by_project.get(current_project_name, set())
 
-        for uid in self.main_app.loaded_browser_ids:
-            checkbox = QCheckBox(uid)
-            checkbox.setFont(QFont('Consolas', 11))
-            checkbox.setStyleSheet(checkbox_style)
-            self.browser_checkboxes_layout.addWidget(checkbox)
-            self.browser_checkboxes.append(checkbox)
-
-        self.browser_checkboxes_layout.addStretch()
-
-    def toggle_all_browsers(self, state):
+        # Update checkboxes to reflect the state for the current project
+        all_selected = True
         for checkbox in self.browser_checkboxes:
-            checkbox.setChecked(state == Qt.Checked)
+            browser_id = checkbox.text()
+            is_checked = browser_id in selected_browsers
+            checkbox.setChecked(is_checked)
+            if not is_checked:
+                all_selected = False
+        
+        self.select_all_checkbox.setChecked(all_selected)
+
+        # Unblock signals
+        self.select_all_checkbox.blockSignals(False)
+        for cb in self.browser_checkboxes:
+            cb.blockSignals(False)
+
+    def on_browser_selection_changed(self, state, browser_id):
+        current_project_item = self.sidebar.currentItem()
+        if not current_project_item:
+            return
+        current_project_name = current_project_item.text()
+        
+        project_selections = self.browser_selections_by_project.setdefault(current_project_name, set())
+
+        if state == Qt.Checked:
+            project_selections.add(browser_id)
+        else:
+            project_selections.discard(browser_id)
+        
+        # Update the "Select All" checkbox state without triggering its signal
+        self.select_all_checkbox.blockSignals(True)
+        if len(project_selections) == len(self.browser_checkboxes):
+            self.select_all_checkbox.setChecked(True)
+        else:
+            self.select_all_checkbox.setChecked(False)
+        self.select_all_checkbox.blockSignals(False)
+
+    def toggle_all_browsers(self, checked):
+        current_project_item = self.sidebar.currentItem()
+        if not current_project_item:
+            return
+        current_project_name = current_project_item.text()
+        
+        # Update the data model first
+        if checked:
+            all_browser_ids = {cb.text() for cb in self.browser_checkboxes}
+            self.browser_selections_by_project[current_project_name] = all_browser_ids
+        else:
+            self.browser_selections_by_project[current_project_name] = set()
+
+        # Update the UI
+        for checkbox in self.browser_checkboxes:
+            checkbox.setChecked(checked)
 
     def get_selected_browser_ids(self):
-        return [cb.text() for cb in self.browser_checkboxes if cb.isChecked()]
+        current_project_item = self.sidebar.currentItem()
+        if not current_project_item:
+            return []
+        current_project_name = current_project_item.text()
+        return sorted(list(self.browser_selections_by_project.get(current_project_name, set())))
 
     def populate_projects(self, projects):
         self.project_classes = projects
         self.sidebar.clear()
+        self.browser_selections_by_project.clear()
+
+        # Rebuild browser selection UI from scratch only once
+        while self.browser_checkboxes_layout.count():
+            item = self.browser_checkboxes_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None: widget.deleteLater()
+        self.browser_checkboxes.clear()
+
+        checkbox_style = ''' QCheckBox { spacing: 10px; } QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #bdc3c7; border-radius: 4px; } QCheckBox::indicator:unchecked:hover { border-color: #3498db; } QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); } '''
+        for uid in self.main_app.loaded_browser_ids:
+            checkbox = QCheckBox(uid)
+            checkbox.setFont(QFont('Consolas', 11))
+            checkbox.setStyleSheet(checkbox_style)
+            checkbox.stateChanged.connect(lambda state, b_id=uid: self.on_browser_selection_changed(state, b_id))
+            self.browser_checkboxes_layout.addWidget(checkbox)
+            self.browser_checkboxes.append(checkbox)
+        self.browser_checkboxes_layout.addStretch()
+
+        # Populate project-specific task views and initialize their selection state
         while self.task_options_stack.count() > 0:
             widget = self.task_options_stack.widget(0)
             self.task_options_stack.removeWidget(widget)
@@ -626,11 +689,10 @@ class ProjectTab(QWidget):
         for proj in self.project_classes:
             self.sidebar.addItem(proj['project_name'])
             self.task_options_stack.addWidget(self.create_available_tasks_widget(proj))
+            self.browser_selections_by_project[proj['project_name']] = set() # Initialize with empty set
 
         if self.project_classes:
             self.sidebar.setCurrentRow(0)
-
-        self.update_browser_selection_widget()
 
     def create_available_tasks_widget(self, proj):
         widget = QWidget()
@@ -752,6 +814,8 @@ class ProjectTab(QWidget):
 
     def on_sidebar_changed(self, index):
         self.task_options_stack.setCurrentIndex(index)
+        # --- 新增：当切换项目时，更新浏览器勾选视图以反映新项目的状态 ---
+        self.update_browser_selection_widget()
 
     def on_run_sequence_clicked(self):
         if self.is_running:
