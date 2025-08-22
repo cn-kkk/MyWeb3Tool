@@ -1,13 +1,14 @@
 import markdown
 import sys
 import os
+import json
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QHBoxLayout, QListWidget, 
     QTextEdit, QPushButton, QLabel, QPlainTextEdit, 
     QStackedWidget, QMessageBox, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem,
-    QRadioButton, QCheckBox, QGridLayout, QSizePolicy, QTreeWidgetItem
+    QRadioButton, QCheckBox, QGridLayout, QSizePolicy, QTreeWidgetItem, QTreeWidget
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject, QTimer
 from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon, QMovie
@@ -487,9 +488,9 @@ class ProjectTab(QWidget):
         seq_title.setFont(QFont('Microsoft YaHei', 14, QFont.Weight.Bold))
         seq_title.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
 
-        self.sequence_list = QListWidget()
-        self.sequence_list.setStyleSheet("QListWidget { border: 1px solid #ccc; border-radius: 8px; }")
-        self.sequence_list.setSpacing(8)
+        self.sequence_tree = QTreeWidget() # CHANGED: QListWidget -> QTreeWidget
+        self.sequence_tree.setHeaderHidden(True) # Hide header
+        self.sequence_tree.setStyleSheet("QTreeWidget { border: 1px solid #ccc; border-radius: 8px; } QTreeWidget::item { padding: 5px; } ")
 
         # Action Buttons
         action_layout = QHBoxLayout()
@@ -504,7 +505,7 @@ class ProjectTab(QWidget):
 
         self.clear_seq_btn = QPushButton("清空序列")
         self.clear_seq_btn.setStyleSheet("background-color: #95a5a6; color: white; font-weight: bold; padding: 12px; border-radius: 5px;")
-        self.clear_seq_btn.clicked.connect(self.sequence_list.clear)
+        self.clear_seq_btn.clicked.connect(self.clear_sequence) # CHANGED: Connect to new method
 
         action_layout.addWidget(self.stop_btn)
         action_layout.addStretch()
@@ -512,7 +513,7 @@ class ProjectTab(QWidget):
         action_layout.addWidget(self.run_seq_btn)
 
         right_layout.addWidget(seq_title)
-        right_layout.addWidget(self.sequence_list)
+        right_layout.addWidget(self.sequence_tree) # CHANGED
         right_layout.addLayout(action_layout)
 
         splitter.addWidget(left_panel)
@@ -520,10 +521,30 @@ class ProjectTab(QWidget):
         splitter.setSizes([750, 250])
         main_layout.addWidget(splitter)
 
+    def render_sequence_tree(self):
+        self.sequence_tree.clear()
+        for project_group in self.sequence_model:
+            project_name = project_group['projectName']
+            project_item = QTreeWidgetItem(self.sequence_tree, [project_name])
+            project_item.setFont(0, QFont('Microsoft YaHei', 12, QFont.Weight.Bold))
+            
+            for task in project_group['tasks']:
+                task_text = f"    任务: {task['task_name']} (执行 {task['repetition']} 次)"
+                task_item = QTreeWidgetItem(project_item, [task_text])
+            
+            browser_text = f"    浏览器: {', '.join(project_group['browser_ids'])}"
+            browser_item = QTreeWidgetItem(project_item, [browser_text])
+            browser_item.setForeground(0, QColor("#555"))
+
+        self.sequence_tree.expandAll()
+
+    def clear_sequence(self):
+        self.sequence_model.clear()
+        self.render_sequence_tree()
+
     def on_view_option_changed(self):
         if self.browser_radio.isChecked():
             self.main_content_stack.setCurrentIndex(0)
-            # Refresh browser list in case it changed in config
             self.update_browser_selection_widget()
         else:
             self.main_content_stack.setCurrentIndex(1)
@@ -563,7 +584,6 @@ class ProjectTab(QWidget):
         return widget
 
     def update_browser_selection_widget(self):
-        # Clear ALL items from the layout, including stretches
         while self.browser_checkboxes_layout.count():
             item = self.browser_checkboxes_layout.takeAt(0)
             widget = item.widget()
@@ -579,15 +599,13 @@ class ProjectTab(QWidget):
             QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); }
         '''
 
-        # Repopulate with current browser IDs
         for uid in self.main_app.loaded_browser_ids:
             checkbox = QCheckBox(uid)
             checkbox.setFont(QFont('Consolas', 11))
             checkbox.setStyleSheet(checkbox_style)
             self.browser_checkboxes_layout.addWidget(checkbox)
             self.browser_checkboxes.append(checkbox)
-        
-        # Add the stretch back at the end
+
         self.browser_checkboxes_layout.addStretch()
 
     def toggle_all_browsers(self, state):
@@ -611,8 +629,7 @@ class ProjectTab(QWidget):
 
         if self.project_classes:
             self.sidebar.setCurrentRow(0)
-        
-        # Populate browser list initially
+
         self.update_browser_selection_widget()
 
     def create_available_tasks_widget(self, proj):
@@ -693,30 +710,45 @@ class ProjectTab(QWidget):
         if not count_text.isdigit() or not (1 <= int(count_text) <= 99):
             QMessageBox.warning(self, "输入无效", "执行次数必须是 1 到 99 之间的整数。")
             return
-
+        
         count = int(count_text)
+        project_name = project['project_name']
+        task_name = task['name']
+        selected_browsers = self.get_selected_browser_ids()
 
-        for i in range(self.sequence_list.count()):
-            item = self.sequence_list.item(i)
-            widget = self.sequence_list.itemWidget(item)
-            if widget and widget.project_name == project['project_name'] and widget.task_name == task['name']:
-                self.sequence_list.takeItem(i)
+        if not selected_browsers:
+            QMessageBox.warning(self, "未选择浏览器", "请在'浏览器勾选'中至少选择一个浏览器。")
+            return
+
+        existing_project_group = None
+        for group in self.sequence_model:
+            if group['projectName'] == project_name:
+                existing_project_group = group
                 break
+        
+        if existing_project_group:
+            existing_project_group['browser_ids'] = selected_browsers
 
-        list_item = QListWidgetItem(self.sequence_list)
-        item_widget = SequenceItemWidget(project['project_name'], task['name'], count, list_item)
-        item_widget.remove_requested.connect(self.remove_item_from_sequence)
-
-        list_item.setSizeHint(item_widget.sizeHint())
-        self.sequence_list.addItem(list_item)
-        self.sequence_list.setItemWidget(list_item, item_widget)
+            task_found = False
+            for t in existing_project_group['tasks']:
+                if t['task_name'] == task_name:
+                    t['repetition'] = count
+                    task_found = True
+                    break
+            if not task_found:
+                existing_project_group['tasks'].append({'task_name': task_name, 'repetition': count})
+        else:
+            new_group = {
+                "projectName": project_name,
+                "tasks": [{'task_name': task_name, 'repetition': count}],
+                "browser_ids": selected_browsers
+            }
+            self.sequence_model.append(new_group)
+            
+        self.render_sequence_tree()
 
     def remove_item_from_sequence(self, list_item):
-        if self.is_running:
-            QMessageBox.warning(self, "操作无效", "任务正在执行时，无法修改任务序列。")
-            return
-        row = self.sequence_list.row(list_item)
-        self.sequence_list.takeItem(row)
+        pass
 
     def on_sidebar_changed(self, index):
         self.task_options_stack.setCurrentIndex(index)
@@ -725,52 +757,21 @@ class ProjectTab(QWidget):
         if self.is_running:
             return
 
-        sequence_data = []
-        for i in range(self.sequence_list.count()):
-            item = self.sequence_list.item(i)
-            widget = self.sequence_list.itemWidget(item)
-            if widget:
-                sequence_data.append(widget.get_sequence_data())
-
-        if not sequence_data:
+        if not self.sequence_model:
             QMessageBox.information(self, "序列为空", "请先将任务添加到执行序列。")
             return
 
-        browser_ids = self.get_selected_browser_ids()
-        if not browser_ids:
-            QMessageBox.warning(self, "未选择浏览器", "请在'浏览器勾选'中至少选择一个浏览器。")
-            return
+        sequence_data_for_backend = self.sequence_model
 
         self.is_running = True
         self.update_button_states()
         app_controller.interrupt_event.clear()
 
-        from collections import Counter
-        initial_tasks = []
-        task_counts = Counter()
-
-        # 这个循环的顺序必须和后端worker接收到的任务顺序保持一致
-        # 以确保生成的唯一ID是同步的。
-        for browser_id in browser_ids:
-            for task_item in sequence_data:
-                original_task_name = task_item['task_name']
-                for _ in range(task_item.get('repetition', 1)):
-                    execution_index = task_counts[(browser_id, original_task_name)]
-                    unique_task_name = f"{original_task_name}_{execution_index}"
-                    
-                    initial_tasks.append({
-                        'browser_id': browser_id,
-                        'task_name': unique_task_name
-                    })
-                    task_counts[(browser_id, original_task_name)] += 1
-        
-        self.results_tab.populate_initial_tasks(initial_tasks)
-
-        log_util.info("UI", f"任务序列已提交给后端执行，共 {len(sequence_data)} 个任务。")
-        QMessageBox.information(self, "任务开始", f"开始执行任务")
+        QMessageBox.information(self, "任务开始", "任务已提交后端，开始执行...")
 
         concurrent_browsers = int(self.concurrency_combo.currentText())
-        self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data, concurrent_browsers)
+
+        self.dispatch_thread = TaskDispatchThread(app_controller, sequence_data_for_backend, concurrent_browsers)
         self.dispatch_thread.start()
         self.progress_timer.start(2000)
 

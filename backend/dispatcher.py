@@ -41,49 +41,57 @@ class Dispatcher:
         self.sequence = sequence
         self.concurrent_browsers = concurrent_browsers
         self.projects_map = projects_map
-        self.scale_factor = get_windows_dpi_scaling()
         self.interrupt_event = interrupt_event
         self.log = log_util
+
+        self.scale_factor = get_windows_dpi_scaling()
         self.screen_width, self.screen_height = pyautogui.size()
+
         self.executor = ThreadPoolExecutor(max_workers=self.concurrent_browsers, thread_name_prefix='BrowserWorker')
-        self.concurrency_semaphore = threading.Semaphore(self.concurrent_browsers)  # 确保最多同步浏览器数
-        self.browser_ids = []
-        self.assignments = []
-        self.assignment_lock = threading.Lock()  # 用于线程安全地操作任务列表
-        self.total_task_count = 0
+        self.concurrency_semaphore = threading.Semaphore(self.concurrent_browsers)
 
-    def _generate_all_assignments(self):
-        """根据原始任务序列，生成所有分配方案。"""
-        num_browsers = len(self.browser_ids)
-        expanded_tasks = []
-        for task_def in self.sequence:
-            task_template = {k: v for k, v in task_def.items() if k != 'repetition'}
-            task_template['repetition'] = 1
-            expanded_tasks.extend([task_template] * task_def.get('repetition', 1))
+        self.job_list = []  # 用于存放所有工作任务定义
+        self.total_task_count = 0  # 将在execute()方法中计算
+
+    def _generate_job_list(self):
+        """
+        Generates a list of all jobs for all browsers based on the sequence.
+        This implements the 'consolidate first, then shuffle' strategy.
+        """
+        work_by_browser = {}
+
+        # 阶段1: 为每个浏览器合并任务
+        for project_group in self.sequence:
+            project_tasks = project_group.get('tasks', [])
+            browser_ids_for_project = project_group.get('browser_ids', [])
+
+            # 根据重复次数展开任务
+            expanded_tasks = []
+            for task in project_tasks:
+                for _ in range(task.get('repetition', 1)):
+                    expanded_tasks.append({'task_name': task['task_name']})
+            
+            if not expanded_tasks:
+                continue
+
+            # 将这些任务追加到每个浏览器的任务列表中
+            for browser_id in browser_ids_for_project:
+                if browser_id not in work_by_browser:
+                    work_by_browser[browser_id] = []
+                work_by_browser[browser_id].extend(expanded_tasks)
+
+        # 阶段2: 为每个浏览器打乱任务顺序并生成最终工作列表
+        self.job_list = []
+        for browser_id, tasks in work_by_browser.items():
+            random.shuffle(tasks)
+            self.job_list.append({
+                'user_id': browser_id,
+                'tasks_to_run': tasks
+            })
         
-        total_tasks = len(expanded_tasks)
-        if not total_tasks: 
-            self.assignments = [[] for _ in range(num_browsers)]
-            return
-        if total_tasks <= 1: 
-            all_permutations = [expanded_tasks]
-        elif total_tasks > 7:
-            all_permutations = []
-            for _ in range(100):
-                shuffled_list = list(expanded_tasks)
-                random.shuffle(shuffled_list)
-                all_permutations.append(shuffled_list)
-        else:
-            task_tuples = [tuple(sorted(d.items())) for d in expanded_tasks]
-            all_permutations_as_tuples = list(set(itertools.permutations(task_tuples)))
-            all_permutations = [[dict(t) for t in p] for p in all_permutations_as_tuples]
-
-        if not all_permutations: 
-            self.assignments = [[] for _ in range(num_browsers)]
-            return
-
-        assignment_cycler = itertools.cycle(all_permutations)
-        self.assignments = [next(assignment_cycler) for _ in range(num_browsers)]
+        # 生成最终列表后，计算总任务数
+        self.total_task_count = sum(len(job['tasks_to_run']) for job in self.job_list)
+        self.log.info("调度器", f"已生成 {len(self.job_list)} 个工作包，总任务数: {self.total_task_count}")
 
     def _arrange_window(self, browser: ChromiumPage, worker_id: int):
         """根据总并发数和当前序号，动态计算并排列窗口。"""
@@ -141,12 +149,11 @@ class Dispatcher:
         except Exception as e:
             self.log.error(f"调度器", f"排列窗口时发生严重错误: {e}", exc_info=True)
 
-    def _worker(self, browser, assignment, user_id):
+    def _worker(self, browser, assignment, user_id, worker_id):
         """包含原BrowserWorker核心逻辑的工作函数，由线程池执行。"""
         try:
             try:
-                thread_name = threading.current_thread().name
-                worker_id = int(thread_name.split('_')[-1])
+                # worker_id 现在直接传入用于窗口排列
                 self._arrange_window(browser, worker_id)
             except Exception as e:
                 self.log.error(user_id, f"排列窗口失败: {e}", exc_info=True)
@@ -234,44 +241,31 @@ class Dispatcher:
         """设置中断事件并清空待处理任务以停止所有工作。"""
         self.log.info("调度器", "接收到关闭信号，正在终止所有任务...")
         self.interrupt_event.set()
-        with self.assignment_lock:
-            self.log.info("调度器", "清空所有待执行的任务分配。")
-            self.browser_ids.clear()
-            self.assignments.clear()
+        self.log.info("调度器", "清空所有待执行的任务分配。")
+        self.job_list.clear()
 
     def execute(self):
-        """调度器的主执行方法。"""
-        all_browser_ids = AdsBrowserUtil.get_configured_user_ids()
-        if not all_browser_ids:
-            self.log.error("调度器", "未在配置文件中找到任何浏览器ID，调度中止。")
+        """Dispatcher's main execution method."""
+        self.log.info("调度器", "开始生成工作分配...")
+        self._generate_job_list()
+
+        if not self.job_list:
+            self.log.warn("调度器", "没有生成任何有效的工作任务，调度中止。")
+            message_store.put('signals', 'completion', {'status': 'ALL_TASKS_COMPLETED'})
             return
-
-        id_counts = Counter(all_browser_ids)
-        duplicates = [item for item, count in id_counts.items() if count > 1]
-        if duplicates:
-            self.log.error("调度器", f"配置文件中存在重复的浏览器ID: {duplicates}。请修正后重试。调度中止。")
-            return
-
-        self.browser_ids = all_browser_ids
-        self.total_task_count = len(all_browser_ids) * sum(task.get('repetition', 1) for task in self.sequence)
-
-        self._generate_all_assignments()
 
         futures = []
-        i = 0
-        while True:
+        worker_id_counter = 0
+        for job in self.job_list:
+            if self.interrupt_event.is_set():
+                self.log.info("调度器", "在分发任务前检测到中断信号，主调度循环终止。")
+                break
+
             self.concurrency_semaphore.acquire()
-
-            with self.assignment_lock:
-                if i >= len(self.browser_ids) or self.interrupt_event.is_set():
-                    self.concurrency_semaphore.release()
-                    self.log.info("调度器", "所有任务已分发完毕或收到中断信号，主调度循环结束。")
-                    break
-
-                user_id = self.browser_ids[i]
-                assignment = self.assignments[i]
-                i += 1
-
+            
+            user_id = job['user_id']
+            assignment = job['tasks_to_run']
+            
             try:
                 browser = AdsBrowserUtil.start_browser_if_not_running(user_id)
                 if not browser:
@@ -279,8 +273,9 @@ class Dispatcher:
                     self.concurrency_semaphore.release()
                     continue
 
-                future = self.executor.submit(self._worker, browser, assignment, user_id)
+                future = self.executor.submit(self._worker, browser, assignment, user_id, worker_id_counter)
                 futures.append(future)
+                worker_id_counter += 1
 
             except Exception as e:
                 self.log.error(f"调度器", f"在主调度循环中处理 {user_id} 时发生严重错误: {e}", exc_info=True)
@@ -293,5 +288,3 @@ class Dispatcher:
 
         self.executor.shutdown(wait=True)
         message_store.put('signals', 'completion', {'status': 'ALL_TASKS_COMPLETED'})
-
-    
