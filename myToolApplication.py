@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QStackedWidget, QMessageBox, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QStyledItemDelegate, QProxyStyle, QStyle, QScrollArea, QLineEdit, QSplitter, QListWidgetItem,
-    QRadioButton, QCheckBox, QGridLayout, QSizePolicy
+    QRadioButton, QCheckBox, QGridLayout, QSizePolicy, QTreeWidgetItem
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QThread, QObject, QTimer
 from PyQt5.QtGui import QFont, QColor, QPalette, QIntValidator, QIcon, QMovie
@@ -367,43 +367,7 @@ class ConfigTab(QWidget):
             elif index == 1: self.wallet_config_widget.load_config()
             elif index == 2: self.browser_config_widget.load_config()
 
-class SequenceItemWidget(QWidget):
-    """任务序列中的自定义条目控件"""
-    remove_requested = pyqtSignal(QListWidgetItem)
 
-    def __init__(self, project_name, task_name, count, list_item):
-        super().__init__()
-        self.project_name = project_name
-        self.task_name = task_name
-        self.count = count
-        self.list_item = list_item
-        self.init_ui()
-
-    def init_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 5, 10, 5)
-
-        # Left-aligned task name
-        task_name_label = QLabel(f"<b>{self.task_name}</b>")
-        task_name_label.setStyleSheet("font-size: 25px;")
-        # Right-aligned count and remove button
-        count_label = QLabel(f"执行 {self.count} 次")
-        count_label.setStyleSheet("color: #555; font-size: 20px;")
-
-        remove_btn = QPushButton("移除")
-        remove_btn.setStyleSheet("background-color: #e74c3c; color: white; border-radius: 4px; padding: 8px 16px; margin-left: 10px;")
-        remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.list_item))
-
-        layout.addWidget(task_name_label)
-        layout.addStretch()
-        layout.addWidget(count_label)
-        layout.addWidget(remove_btn)
-
-    def get_sequence_data(self):
-        return {
-            'task_name': self.task_name,
-            'repetition': self.count # Use repetition
-        }
 
 class TaskDispatchThread(QThread):
     """专门用于在后台分发任务并等待其完成的线程，以防阻塞UI主线程"""
@@ -427,6 +391,7 @@ class ProjectTab(QWidget):
         self.is_running = False # State lock
         self.progress_timer = QTimer(self)
         self.progress_timer.timeout.connect(self.query_progress)
+        self.sequence_model = [] # NEW: Central data model for the sequence
         self.init_ui()
 
     def init_ui(self):
