@@ -779,7 +779,7 @@ class ProjectTab(QWidget):
         self.progress_timer.stop()
         self.is_running = False
         self.update_button_states()
-        self.sequence_list.clear()
+        self.clear_sequence()
         log_util.info("UI", "任务序列已全部执行完毕，并已清空显示列表。")
         QMessageBox.information(self, "任务完成", "任务序列已全部执行完毕。")
 

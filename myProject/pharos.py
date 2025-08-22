@@ -694,9 +694,32 @@ class PharosScript:
             cfd_trading_page.scroll.to_bottom()
             AntiSybilDpUtil.human_brief_wait()
             # 步骤3: 点击Open Position按钮
-            open_position_btn = cfd_trading_page.ele('#btnOpenPosition', timeout=10)
-            open_position_btn.click()
+            execute_order_btn = cfd_trading_page.ele('xpath://*[@id="btnOpenPosition" and contains(text(), "Execute the order")]', timeout=10)
+            if execute_order_btn and execute_order_btn.states.is_clickable:
+                click_success = False
+                # 点击交易对
+                for _ in range(3):
+                    try:
+                        pair_buttons_div = cfd_trading_page.ele('#pair-buttons', timeout=3)
+                        if pair_buttons_div:
+                            first_pair_link = pair_buttons_div.ele('tag:a', timeout=3)
+                            if first_pair_link and first_pair_link.states.is_clickable:
+                                first_pair_link.click()
+                                AntiSybilDpUtil.human_short_wait()
+                                click_success = True
+                                break
+                    except:
+                        pass
+                if not click_success:
+                    return "尝试3次后仍无法点击交易对，任务失败。"
+                
+                execute_order_btn.click()
+                AntiSybilDpUtil.human_short_wait()
+            # 点击 open position
+            final_open_position_btn = cfd_trading_page.ele('xpath://*[@id="btnOpenPosition" and contains(text(), "Open Position")]', timeout=10)
+            final_open_position_btn.click()
             AntiSybilDpUtil.human_short_wait()
+
             # 步骤4: okx钱包确认
             if not self.okx_util.confirm_transaction_drission(self.browser, self.user_id):
                 message = "cfd trading失败：钱包交易确认失败。"
@@ -709,9 +732,9 @@ class PharosScript:
             message = f"cfd trading发生错误: {error_details}"
             log_util.error(self.user_id, message, exc_info=True)
             return message
-        finally:
-            if cfd_trading_page and cfd_trading_page.tab_id in self.browser.tab_ids:
-                cfd_trading_page.close()
+        # finally:
+        #     if cfd_trading_page and cfd_trading_page.tab_id in self.browser.tab_ids:
+        #         cfd_trading_page.close()
 
 
 if __name__ == "__main__":
