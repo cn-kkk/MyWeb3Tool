@@ -395,6 +395,8 @@ class ProjectTab(QWidget):
         self.sequence_model = [] # NEW: Central data model for the sequence
         # --- 新增：用于独立存储每个项目浏览器选择的状态字典 ---
         self.browser_selections_by_project = {}
+        # --- 新增：用于存储浏览器ID和序号的映射 ---
+        self.browser_id_to_serial_map = {}
         self.init_ui()
 
     def init_ui(self):
@@ -434,7 +436,7 @@ class ProjectTab(QWidget):
         self.task_radio = QRadioButton("任务选项")
         self.browser_radio.setChecked(True)
         radio_button_style = '''
-            QRadioButton {
+            QRadioButton { 
                 border: 1px solid #d0d0d0; padding: 10px 20px; border-radius: 15px;
                 background-color: #f8f9fa; font-weight: bold; font-size: 16px;
             }
@@ -534,7 +536,14 @@ class ProjectTab(QWidget):
                 task_text = f"    任务: {task['task_name']} (执行 {task['repetition']} 次)"
                 task_item = QTreeWidgetItem(project_item, [task_text])
             
-            browser_text = f"    浏览器: {', '.join(project_group['browser_ids'])}"
+            selected_ids = project_group['browser_ids']
+            browser_items = []
+            # 按字母顺序迭代，保证一个基础的稳定排序
+            for browser_id in sorted(selected_ids):
+                serial_num = self.browser_id_to_serial_map.get(browser_id, '?')
+                browser_items.append(f"{serial_num}. {browser_id}")
+            
+            browser_text = f"    浏览器: {', '.join(browser_items)}"
             browser_item = QTreeWidgetItem(project_item, [browser_text])
             browser_item.setForeground(0, QColor("#555"))
 
@@ -566,8 +575,10 @@ class ProjectTab(QWidget):
 
         self.select_all_checkbox = QCheckBox("全选")
         self.select_all_checkbox.setFont(QFont('Microsoft YaHei', 11, QFont.Weight.Bold))
-        self.select_all_checkbox.setStyleSheet(checkbox_style)
-        # The actual stateChanged connection is now managed in update_browser_selection_widget
+        # --- MODIFICATION START ---
+        # 增加左边距以和带序号的浏览器对齐
+        self.select_all_checkbox.setStyleSheet(checkbox_style + "QCheckBox { padding-left: 28px; }")
+        # --- MODIFICATION END ---
         self.select_all_checkbox.clicked.connect(self.toggle_all_browsers)
         layout.addWidget(self.select_all_checkbox)
         
@@ -586,29 +597,35 @@ class ProjectTab(QWidget):
         return widget
 
     def update_browser_selection_widget(self):
-        # Block signals to prevent mass updates while we set states
         self.select_all_checkbox.blockSignals(True)
         for cb in self.browser_checkboxes:
             cb.blockSignals(True)
 
         current_project_item = self.sidebar.currentItem()
         if not current_project_item:
+            self.select_all_checkbox.blockSignals(False)
+            for cb in self.browser_checkboxes:
+                cb.blockSignals(False)
             return
+
         current_project_name = current_project_item.text()
         selected_browsers = self.browser_selections_by_project.get(current_project_name, set())
 
-        # Update checkboxes to reflect the state for the current project
         all_selected = True
         for checkbox in self.browser_checkboxes:
-            browser_id = checkbox.text()
+            # --- MODIFICATION START ---
+            browser_id = checkbox.property("browser_id")
+            # --- MODIFICATION END ---
             is_checked = browser_id in selected_browsers
             checkbox.setChecked(is_checked)
             if not is_checked:
                 all_selected = False
         
+        if not self.browser_checkboxes:
+            all_selected = False
+
         self.select_all_checkbox.setChecked(all_selected)
 
-        # Unblock signals
         self.select_all_checkbox.blockSignals(False)
         for cb in self.browser_checkboxes:
             cb.blockSignals(False)
@@ -626,9 +643,8 @@ class ProjectTab(QWidget):
         else:
             project_selections.discard(browser_id)
         
-        # Update the "Select All" checkbox state without triggering its signal
         self.select_all_checkbox.blockSignals(True)
-        if len(project_selections) == len(self.browser_checkboxes):
+        if len(project_selections) == len(self.browser_checkboxes) and self.browser_checkboxes:
             self.select_all_checkbox.setChecked(True)
         else:
             self.select_all_checkbox.setChecked(False)
@@ -640,14 +656,14 @@ class ProjectTab(QWidget):
             return
         current_project_name = current_project_item.text()
         
-        # Update the data model first
         if checked:
-            all_browser_ids = {cb.text() for cb in self.browser_checkboxes}
+            # --- MODIFICATION START ---
+            all_browser_ids = {cb.property("browser_id") for cb in self.browser_checkboxes}
+            # --- MODIFICATION END ---
             self.browser_selections_by_project[current_project_name] = all_browser_ids
         else:
             self.browser_selections_by_project[current_project_name] = set()
 
-        # Update the UI
         for checkbox in self.browser_checkboxes:
             checkbox.setChecked(checked)
 
@@ -663,24 +679,26 @@ class ProjectTab(QWidget):
         self.sidebar.clear()
         self.browser_selections_by_project.clear()
 
-        # Rebuild browser selection UI from scratch only once
         while self.browser_checkboxes_layout.count():
             item = self.browser_checkboxes_layout.takeAt(0)
             widget = item.widget()
             if widget is not None: widget.deleteLater()
         self.browser_checkboxes.clear()
 
+        # --- MODIFICATION START ---
+        self.browser_id_to_serial_map = {uid: i for i, uid in enumerate(self.main_app.loaded_browser_ids, 1)}
+        
         checkbox_style = ''' QCheckBox { spacing: 10px; } QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #bdc3c7; border-radius: 4px; } QCheckBox::indicator:unchecked:hover { border-color: #3498db; } QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); } '''
-        for uid in self.main_app.loaded_browser_ids:
-            checkbox = QCheckBox(uid)
+        for i, uid in enumerate(self.main_app.loaded_browser_ids, 1):
+            checkbox = QCheckBox(f"{i: >2}. {uid}")
             checkbox.setFont(QFont('Consolas', 11))
             checkbox.setStyleSheet(checkbox_style)
+            checkbox.setProperty("browser_id", uid)
             checkbox.stateChanged.connect(lambda state, b_id=uid: self.on_browser_selection_changed(state, b_id))
             self.browser_checkboxes_layout.addWidget(checkbox)
             self.browser_checkboxes.append(checkbox)
         self.browser_checkboxes_layout.addStretch()
 
-        # Populate project-specific task views and initialize their selection state
         while self.task_options_stack.count() > 0:
             widget = self.task_options_stack.widget(0)
             self.task_options_stack.removeWidget(widget)
@@ -916,7 +934,6 @@ class ProjectTab(QWidget):
             app_controller.shutdown()
         else:
             log_util.info("UI", "用户取消了停止操作。")
-
 
 class TotalProgressWidget(QWidget):
     """任务总进度视图的专用控件。"""
