@@ -120,23 +120,20 @@ class PharosScript:
             else:
                 self.page = self.browser.new_tab(self.PHAROS_URL)
 
-            # 步骤1: 等待页面加载并查找 "Check in" 按钮
-            AntiSybilDpUtil.human_short_wait()
+            # 步骤1: 切换网络
+            AntiSybilDpUtil.human_long_wait()
             self._handle_switch_network_popup(self.page)
             self.page.wait.doc_loaded()
-            checkin_btn = self.page.ele(  # type: ignore
-                'xpath://button[contains(text(), "Check in")]', timeout=20
-            )
 
             # 步骤2: 如果找到按钮，则点击并刷新
-            if checkin_btn and checkin_btn.states.is_displayed:
-                checkin_btn.click()
-                AntiSybilDpUtil.human_short_wait()
-                self.page.refresh()
-                self.page.wait.load_start()
+            checkin_btn = self.page.ele(
+                'xpath://button[contains(text(), "Check in")]', timeout=20
+            )
+            checkin_btn.wait.clickable(timeout=20).click()
 
             # 步骤3: 验证按钮状态是否变为 "Checked"
-            checked_btn = self.page.ele(  # type: ignore
+            AntiSybilDpUtil.human_short_wait()
+            checked_btn = self.page.ele(
                 'xpath://button[contains(text(), "Checked")]', timeout=10
             )
 
