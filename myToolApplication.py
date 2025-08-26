@@ -598,7 +598,7 @@ class ProjectTab(QWidget):
 
         all_selected = True
         for checkbox in self.browser_checkboxes:
-            browser_id = checkbox.text()
+            browser_id = checkbox.property("browser_id")
             is_checked = browser_id in selected_browsers
             checkbox.setChecked(is_checked)
             if not is_checked:
@@ -637,7 +637,7 @@ class ProjectTab(QWidget):
         current_project_name = current_project_item.text()
 
         if checked:
-            all_browser_ids = {cb.text() for cb in self.browser_checkboxes}
+            all_browser_ids = {cb.property("browser_id") for cb in self.browser_checkboxes}
             self.browser_selections_by_project[current_project_name] = all_browser_ids
         else:
             self.browser_selections_by_project[current_project_name] = set()
@@ -664,8 +664,9 @@ class ProjectTab(QWidget):
         self.browser_checkboxes.clear()
 
         checkbox_style = ''' QCheckBox { spacing: 10px; } QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #bdc3c7; border-radius: 4px; } QCheckBox::indicator:unchecked:hover { border-color: #3498db; } QCheckBox::indicator:checked { background-color: #3498db; border-color: #3498db; image: url(none); } '''
-        for uid in self.main_app.loaded_browser_ids:
-            checkbox = QCheckBox(uid)
+        for i, uid in enumerate(self.main_app.loaded_browser_ids):
+            checkbox = QCheckBox(f"{i + 1:>2}. {uid}")
+            checkbox.setProperty("browser_id", uid)
             checkbox.setFont(QFont('Consolas', 11))
             checkbox.setStyleSheet(checkbox_style)
             checkbox.stateChanged.connect(lambda state, b_id=uid: self.on_browser_selection_changed(state, b_id))
