@@ -707,11 +707,11 @@ class PharosScript:
                 if not click_success:
                     return "尝试3次后仍无法点击交易对，任务失败。"
                 
-                execute_order_btn.wait.clickable(timeout=20).click()
+                cfd_trading_page.actions.click(execute_order_btn)
                 AntiSybilDpUtil.human_short_wait()
             # 点击 open position
             final_open_position_btn = cfd_trading_page.ele('xpath://*[@id="btnOpenPosition" and contains(text(), "Open Position")]', timeout=10)
-            final_open_position_btn.wait.clickable(timeout=20).click()
+            cfd_trading_page.actions.click(final_open_position_btn)
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤4: okx钱包确认

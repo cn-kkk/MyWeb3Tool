@@ -12,6 +12,7 @@ from DrissionPage import ChromiumPage, ChromiumOptions
 
 from backend.message_store import message_store
 from util.ads_browser_util import AdsBrowserUtil
+from util.anti_sybil_dp_util import AntiSybilDpUtil
 from util.log_util import log_util
 
 from util.okx_wallet_util import OKXWalletUtil
@@ -156,8 +157,19 @@ class Dispatcher:
                 thread_name = threading.current_thread().name
                 worker_id = int(thread_name.split('_')[-1])
                 self._arrange_window(browser, worker_id)
+
+                # 在窗口排列（并创建了新页面）后，立即获取该页面并注入补丁
+                AntiSybilDpUtil.human_brief_wait()
+                page = browser.latest_tab
+                if page:
+                    AntiSybilDpUtil.patch_webdriver_fingerprint(page)
+                    self.log.info(user_id, "已成功为工作页面注入反指纹补丁。")
+                else:
+                    raise Exception("排列窗口后未能获取页面，无法注入补丁。")
+
             except Exception as e:
-                self.log.error(user_id, f"排列窗口失败: {e}", exc_info=True)
+                self.log.error(user_id, f"排列窗口或注入补丁失败: {e}", exc_info=True)
+                return # 关键步骤失败，中止该worker
 
             try:
                 okx_util = OKXWalletUtil()

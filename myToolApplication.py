@@ -534,9 +534,21 @@ class ProjectTab(QWidget):
                 task_text = f"    任务: {task['task_name']} (执行 {task['repetition']} 次)"
                 task_item = QTreeWidgetItem(project_item, [task_text])
             
+            browser_item = QTreeWidgetItem(project_item)
             browser_text = f"    浏览器: {', '.join(project_group['browser_ids'])}"
-            browser_item = QTreeWidgetItem(project_item, [browser_text])
-            browser_item.setForeground(0, QColor("#555"))
+            
+            # 使用QTextEdit显示浏览器文本
+            text_edit = QTextEdit()
+            text_edit.setReadOnly(True)
+            text_edit.setPlainText(browser_text) # 使用setPlainText
+            text_edit.setStyleSheet("QTextEdit { border: none; background: transparent; color: #555; padding: 0px; margin: 0px; }")
+            text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            text_edit.document().setTextWidth(self.sequence_tree.viewport().width())
+            size = text_edit.document().size()
+            text_edit.setFixedHeight(int(size.height()) + 10) # 增加5像素的缓冲区域
+
+            self.sequence_tree.setItemWidget(browser_item, 0, text_edit)
 
         self.sequence_tree.expandAll()
 

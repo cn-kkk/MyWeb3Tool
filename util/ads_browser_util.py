@@ -129,6 +129,9 @@ class AdsBrowserUtil:
         if selenium_ws:
             try:
                 co = ChromiumOptions().set_address(selenium_ws)
+                co.set_argument("--disable-blink-features", "AutomationControlled")
+                co.set_argument("--exclude-switches", "enable-automation")
+                co.set_argument("--disable-automation-extension")
                 page_controller = ChromiumPage(co)
                 browser_object = page_controller.browser
                 return browser_object
