@@ -16,7 +16,8 @@ class OKXWalletUtil:
     OKX钱包工具类
     """
     PASSWORD = None
-    EXTENSION_ID = 'mcohilncbfahbmgdjkbpemcciiolgcge'
+    # EXTENSION_ID = 'mcohilncbfahbmgdjkbpemcciiolgcge'
+    EXTENSION_ID = 'cgakmdfcojbiaaodedeaofbbnemebmdi'
 
     def __init__(self):
         self.password_file = "resource/okxPassword.txt"
@@ -86,7 +87,7 @@ class OKXWalletUtil:
 
                 # 处理“确认”或“连接”
                 action_button = wallet_page.ele(
-                    'xpath://button[contains(., "确认") or contains(., "连接")]', timeout=10
+                    'xpath://button[contains(., "确认") or contains(., "確認") or contains(., "连接") or contains(., "連接")]', timeout=10
                 )
                 if action_button and action_button.states.is_clickable:
                     action_button.click()
@@ -138,13 +139,29 @@ class OKXWalletUtil:
                 log_util.info(user_id, "钱包已经是解锁状态")
                 wallet_tab.close()
             else:
-                password_input = wallet_tab.ele('tag:input@type=password', timeout=10)
+                password_input = wallet_tab.ele('tag:input@type=password', timeout=5)  # 使用较短超时
                 if password_input:
                     password_input.input(self.PASSWORD)
                     AntiSybilDpUtil.human_short_wait()
                     unlock_button = wallet_tab.ele('tag:button@type=submit', timeout=10)
                     unlock_button.click()
                     AntiSybilDpUtil.human_short_wait()
+                else:
+                    # okx wallet 3.70.x更新了反脚本检测
+                    iframe = wallet_tab.get_frame('tag:iframe', timeout=10)
+                    password_input_in_frame = iframe.ele('tag:input@placeholder=请输入密码', timeout=10)
+                    
+                    if password_input_in_frame:
+                        password_input_in_frame.input(self.PASSWORD)
+                        AntiSybilDpUtil.human_short_wait()
+                        # unlock_button_in_frame = iframe.ele('tag:button@type=submit', timeout=10)
+                        # unlock_button_in_frame.click()
+                        wallet_tab.actions.key_down("Enter")
+                        time.sleep(0.1)
+                        wallet_tab.actions.key_up("Enter")
+                        AntiSybilDpUtil.human_short_wait()
+                    else:
+                        raise Exception("在iframe内未找到placeholder为'请输入密码'的输入框")
 
                 # 解锁后，检查并处理可能出现的“取消交易”弹窗
                 cancel_tx_button = wallet_tab.ele('text:取消交易', timeout=10)
@@ -159,6 +176,7 @@ class OKXWalletUtil:
                     cancel_button.click()
                     AntiSybilDpUtil.human_short_wait()
 
+                AntiSybilDpUtil.human_short_wait()
                 if not wallet_tab.wait.ele_displayed(send_button_xpath, timeout=10):
                     log_util.warn(user_id, "未能确认钱包是否解锁，请手动确认。")
 

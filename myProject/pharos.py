@@ -75,16 +75,14 @@ class PharosScript:
                     else:
                         raise e
                 AntiSybilDpUtil.human_short_wait()
-
+                self._handle_switch_network_popup(self.page)
                 # 处理可选的"Continue"按钮
-
                 continue_btn = self.page.ele('text:Continue', timeout=10)
                 if continue_btn and continue_btn.states.is_clickable:
                     continue_btn.click()
                     AntiSybilDpUtil.human_long_wait()
-
-                # 最终确认钱包连接
-                self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
+                    # 最终确认钱包连接
+                    self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
 
         except Exception as e:
             log_util.error(self.user_id, f"项目 '{self.project_name}' 初始化失败: {e}", exc_info=True)
@@ -409,8 +407,8 @@ class PharosScript:
                 message = "未能等到faro的'Review Swap'按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            review_button.wait.clickable(timeout=20).click()
-            AntiSybilDpUtil.human_short_wait()
+            swap_page.actions.click(review_button)
+            AntiSybilDpUtil.human_long_wait()
 
             # 步骤7: 点击 Confirm Swap 按钮 (在15秒内持续查找)
             confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=30)
@@ -418,7 +416,7 @@ class PharosScript:
                 message = "未能等到faro的'Confirm Swap'按钮出现。"
                 log_util.error(self.user_id, message)
                 return message
-            confirm_button.wait.clickable(timeout=20).click()
+            swap_page.actions.click(confirm_button)
             AntiSybilDpUtil.human_long_wait()
 
             # 步骤8: 处理钱包交易确认
@@ -443,12 +441,12 @@ class PharosScript:
             AntiSybilDpUtil.human_short_wait()
 
             # 步骤11: 再次swap
-            review_button = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=30)
-            review_button.wait.clickable(timeout=20).click()
-            AntiSybilDpUtil.human_short_wait()
+            review_button2 = swap_page.ele('xpath://button[@data-testid="swap-review-btn"]', timeout=30)
+            swap_page.actions.click(review_button2)
+            AntiSybilDpUtil.human_long_wait()
 
-            confirm_button = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=30)
-            confirm_button.wait.clickable(timeout=20).click()
+            confirm_button2 = swap_page.ele("xpath://button[text()='Confirm swap']", timeout=30)
+            swap_page.actions.click(confirm_button2)
             AntiSybilDpUtil.human_long_wait()
 
             self.okx_util.confirm_transaction_drission(self.browser, self.user_id)
