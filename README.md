@@ -1,3 +1,5 @@
+## 停止更新！由于反撸严重！3.70+OKX钱包更新isTrusted校验！
+
 # MyWeb3Tool
 
 本软件是一个基于 **AdsPower** 和 **DrissionPage** 框架的Web3自动化工具。
